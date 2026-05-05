@@ -385,9 +385,29 @@
       ),
       hosts: fd("127.0.0.1 localhost\n::1 localhost ip6-loopback\n"),
       shadow: fd("root:!:19800:0:99999:7:::\n"),
+      suricata: dd({
+        rules: dd({
+          "local.rules": fd(
+            "# Qo‘lda: suricata-alert-ip yordamida IP qo‘shing — qoidalar shu yerda yoziladi.\n"
+          ),
+        }),
+        "suricata.yaml": fd(
+          "# CyberLab Suricata (sim)\n" +
+            "HOME_NET_CIDR=192.168.0.0/16\n" +
+            "IPS_ALERT_FROM:\n" +
+            "  (yo‘q)\n" +
+            "RULE_FILE=/etc/suricata/rules/local.rules\n" +
+            "ENGINE=STOPPED\n"
+        ),
+      }),
     }),
     var: dd({
       log: dd({
+        suricata: dd({
+          "eve.json": fd(
+            '{"timestamp":"mock","event_type":"heartbeat","sensor":"suricata-cyberlab"}\n'
+          ),
+        }),
         syslog: fd(
           "Jan 02 10:01:01 cyberlab kernel: [    0.000000] Linux version 6.x\n" +
             "Jan 02 10:01:02 cyberlab systemd[1]: Started Session 1 of user user.\n" +
@@ -402,7 +422,9 @@
     home: dd({
       user: dd({
         readme: fd("Welcome to CyberLab VFS. Try: cat /var/log/syslog\n"),
-        notes: fd("DPI: analyze-packet \"GET /?id=1\"   IDS: ids-status\n"),
+        notes: fd(
+          "IDS: ids-status start-ids · Suricata: suricata-install suricata-alert-ip …\n"
+        ),
         Desktop: dd({}),
       }),
     }),
@@ -411,10 +433,82 @@
     }),
   });
 
+  /** Suricata simulyatsiyasi — VFS /etc/suricata bilan sinxron. */
   var state = {
     cwdSegments: ["home", "user"],
     homeSegments: ["home", "user"],
+    suricata: {
+      installed: false,
+      running: false,
+      pid: 0,
+      homeNet: "192.168.0.0/16",
+      alertIps: [],
+    },
   };
+
+  var IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+  var IPV4_HOST_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
+
+  function isIpv4Host(s) {
+    return IPV4_HOST_RE.test(String(s || "").trim());
+  }
+
+  function isHomeNetCidr(s) {
+    return IPV4_RE.test(String(s || "").trim());
+  }
+
+  function syncSuricataFilesToVFS() {
+    var s = state.suricata;
+    var yaml = getNode(["etc", "suricata", "suricata.yaml"]);
+    var rules = getNode(["etc", "suricata", "rules", "local.rules"]);
+    if (!yaml || yaml.kind !== "file" || !rules || rules.kind !== "file") {
+      return;
+    }
+    var y =
+      "# CyberLab Suricata (mock — haqiqiy Suricata emas)\n" +
+      "# cat /etc/suricata/suricata.yaml\n" +
+      "HOME_NET_CIDR=" +
+      s.homeNet +
+      "\n" +
+      "# Tashqi manbalardan IDS ogohlantirish uchun kiritilgan IP lar:\n" +
+      "IPS_ALERT_FROM:\n";
+    if (!s.alertIps.length) {
+      y += "  (yo‘q)\n";
+    } else {
+      var j;
+      for (j = 0; j < s.alertIps.length; j += 1) {
+        y += "  - " + s.alertIps[j] + "\n";
+      }
+    }
+    y += "RULE_FILE=/etc/suricata/rules/local.rules\n";
+    y +=
+      "ENGINE=" +
+      (s.running ? "RUNNING pid=" + s.pid : "STOPPED") +
+      "\n" +
+      "INSTALLED=" +
+      (s.installed ? "yes" : "no") +
+      "\n";
+    yaml.content = y;
+    var rlines = [];
+    if (s.alertIps.length) {
+      var k;
+      for (k = 0; k < s.alertIps.length; k += 1) {
+        rlines.push(
+          "alert ip " +
+            s.alertIps[k] +
+            ' any -> any any (msg:"CYBERLAB tashqi IP kuzatuv: ' +
+            s.alertIps[k] +
+            '"; classtype:trojan-activity; sid:9100' +
+            k +
+            "; rev:1;)"
+        );
+      }
+      rules.content = rlines.join("\n") + "\n";
+    } else {
+      rules.content =
+        "# Qo‘lda qoidalar yo‘q. Masalan:\n# suricata-alert-ip add 203.0.113.77\n";
+    }
+  }
 
   var commandHistory = [];
   var historyNavIndex = null;
@@ -855,19 +949,6 @@
     return [{ cls: "out", text: lines.join("\n") }];
   }
 
-  function cmdHelp() {
-    var text =
-      "CyberLab bash (VFS). Standard:\n" +
-      "  ls [path]   cd [path]   pwd   mkdir [-p] <dir>...   touch <file>...\n" +
-      "  cat <file>...   echo <text...>   clear   history\n" +
-      "  Lines starting with # are comments. Prefix with sudo to run as root (simulated).\n" +
-      "Security / capture (mock):\n" +
-      "  tcpdump ...   tshark ...   (realistic capture output, ~1s delay)\n" +
-      "  analyze-packet <payload>   ids-status   start-ids   ping -flood\n" +
-      "Tip: Up/Down arrows browse history.";
-    return [{ cls: "dim", text: text }];
-  }
-
   function cmdAnalyzePacket(args) {
     var joined = args.join(" ");
     var lower = joined.toLowerCase();
@@ -982,13 +1063,444 @@
     ];
   }
 
+  function cmdSuricataInstall() {
+    state.suricata.installed = true;
+    syncSuricataFilesToVFS();
+    return [
+      { cls: "ok", text: "[+] Suricata paketlari «o‘rnatildi» (mock)." },
+      {
+        cls: "dim",
+        text:
+          "Konfig: /etc/suricata/suricata.yaml\n" +
+          "Qoidalar: /etc/suricata/rules/local.rules\n" +
+          "KEYING: suricata-home-net <CIDR> · suricata-alert-ip add <IP> · suricata-start",
+      },
+    ];
+  }
+
+  function cmdSuricataHomeNet(args) {
+    if (!args.length || !isHomeNetCidr(args[0])) {
+      return [
+        {
+          cls: "dim",
+          text:
+            "Foydalanish: suricata-home-net <CIDR>\n" +
+            "Misol: suricata-home-net 192.168.1.0/24",
+        },
+      ];
+    }
+    state.suricata.homeNet = args[0].trim();
+    syncSuricataFilesToVFS();
+    return [
+      {
+        cls: "ok",
+        text:
+          "HOME_NET_CIDR yangilandi: " + state.suricata.homeNet + " (VFS fayl bilan sinxron).",
+      },
+    ];
+  }
+
+  function cmdSuricataAlertIp(args) {
+    var act = (args[0] || "").toLowerCase();
+    var ip = (args[1] || "").trim();
+    var arr = state.suricata.alertIps;
+    if (act === "list" || !act) {
+      syncSuricataFilesToVFS();
+      if (!arr.length) {
+        return [{ cls: "dim", text: "(Ro‘yxat bo‘sh. suricata-alert-ip add 203.0.113.88)" }];
+      }
+      return [{ cls: "out", text: arr.join("\n") }];
+    }
+    if (act === "add") {
+      if (!isIpv4Host(ip)) {
+        return [
+          {
+            cls: "dim",
+            text: "IPv4 manzil kiriting, masalan: suricata-alert-ip add 203.0.113.88",
+          },
+        ];
+      }
+      var u;
+      var exists = false;
+      for (u = 0; u < arr.length; u += 1) {
+        if (arr[u] === ip) {
+          exists = true;
+          break;
+        }
+      }
+      if (!exists) {
+        arr.push(ip);
+      }
+      syncSuricataFilesToVFS();
+      return [
+        {
+          cls: "ok",
+          text:
+            "IP qo‘shildi: " +
+            ip +
+            " — cat /etc/suricata/suricata.yaml va local.rules da ko‘ring.",
+        },
+      ];
+    }
+    if (act === "del" || act === "rm") {
+      if (!isIpv4Host(ip)) {
+        return [{ cls: "dim", text: "suricata-alert-ip del <IPv4>" }];
+      }
+      state.suricata.alertIps = arr.filter(function (x) {
+        return x !== ip;
+      });
+      syncSuricataFilesToVFS();
+      return [{ cls: "ok", text: "O‘chirildi (sim): " + ip }];
+    }
+    return [
+      {
+        cls: "dim",
+        text:
+          "suricata-alert-ip list | suricata-alert-ip add <IPv4> | suricata-alert-ip del <IPv4>",
+      },
+    ];
+  }
+
+  function cmdSuricataStart() {
+    if (!state.suricata.installed) {
+      return [
+        {
+          cls: "warn",
+          text: "Suricata hali «o‘rnatilmagan». Avval: suricata-install",
+        },
+      ];
+    }
+    state.suricata.running = true;
+    state.suricata.pid = 4000 + Math.floor(Math.random() * 900);
+    syncSuricataFilesToVFS();
+    return [
+      {
+        cls: "ok",
+        text:
+          "[+] suricata (sim) ishga tushdi. pid=" +
+          state.suricata.pid +
+          " iface=eth0 HOME_NET=" +
+          state.suricata.homeNet,
+      },
+      {
+        cls: "dim",
+        text: "Tekshiruv: suricata-status · IDs log uslubi: ids-status · cat /var/log/suricata/eve.json",
+      },
+    ];
+  }
+
+  function cmdSuricataStop() {
+    state.suricata.running = false;
+    state.suricata.pid = 0;
+    syncSuricataFilesToVFS();
+    return [{ cls: "dim", text: "[-] suricata (sim) to‘xtatildi." }];
+  }
+
+  function cmdSuricataStatus() {
+    var s = state.suricata;
+    syncSuricataFilesToVFS();
+    var msg =
+      "installed=" +
+      (s.installed ? "yes" : "no") +
+      "\n" +
+      "running=" +
+      (s.running ? "yes pid=" + s.pid : "no") +
+      "\n" +
+      "HOME_NET_CIDR=" +
+      s.homeNet +
+      "\n" +
+      "alert_sources=" +
+      (s.alertIps.length ? s.alertIps.join(", ") : "(yo‘q)");
+    return [{ cls: "out", text: msg }];
+  }
+
+  /** Qisqa UNIX-style stub — har biri javob chiqaradi (laboratoriya uchun keng ro‘yxat). */
+  var MOCK_COMMAND_MESSAGES = [];
+
+  /* eslint-disable max-len -- mock matnlari qator asosida bo‘lsa o‘qish oson */
+  MOCK_COMMAND_MESSAGES = MOCK_COMMAND_MESSAGES.concat(
+    [["uname", "Linux cyberlab-vm 6.x-generic #1 SMP x86_64 GNU/Linux (simulation)", "out"],
+    ["hostname", HOST + ".localdomain", "out"],
+    ["hostnamectl", "Static hostname: " + HOST + "\nArchitecture: x86_64\n… (mock)", "out"],
+    ["domainname", "(none)", "out"],
+    ["dnsdomainname", "(none)", "out"],
+    ["whoami", USER, "out"],
+    ["id", "uid=1000(" + USER + ") gid=1000(" + USER + ") groups=1000(" + USER + ") … (mock)", "out"],
+    ["groups", USER + " : " + USER + " adm netdev (mock)", "out"],
+    ["logname", USER, "out"],
+    ["users", USER, "out"],
+    ["who", USER + " pts/0 2026-01-02 10:05 (mock)", "out"],
+    ["w", "USER TTY IDLE …\nuser pts/0 0.00s w (mock)", "out"],
+    ["last", "user pts/0 192.168.1.42 Tue … still logged in", "dim"],
+    ["uptime", "10:05:42 up 2 days 4:01, load average: 0.05, 0.02, 0.01 (mock)", "out"],
+    ["date", "(mock) Tue May 05 10:05:42 UTC 2026", "out"],
+    ["timedatectl", "System clock synchronized: yes\nTime zone: UTC (mock)", "out"],
+    ["cal", "(mock ASCII calendar skipped — use desktop cal)", "dim"],
+    ["free", "              total        used        free\nMem:       8172        2101       5890 (mock)", "out"],
+    ["vmstat", "procs — memory … (mock snippet)\nr b swpd …", "dim"],
+    ["iostat", "Device tps MB_read MB_wrtn … (mock)", "dim"],
+    ["lscpu", "Architecture x86_64\nCPU(s): 4\n… (CyberLab stub)", "out"],
+    ["lsblk", "NAME MAJ:MIN RM SIZE RO TYPE MOUNTPOINT\nsda … (mock)", "dim"],
+    ["blkid", "/dev/sda1: UUID=\"…\" TYPE=\"ext4\" (mock)", "dim"],
+    ["df", "Filesystem 1K-blocks Used Avail Use% Mounted on\n/dev/sda1 … / (mock)", "out"],
+    ["du", "du: sum subdirs — use real host for sizes (stub)", "dim"],
+    ["mount", "/dev/sda1 on / type ext4 (rw) … (mock)", "dim"],
+    ["findmnt", "TARGET SOURCE FSTYPE OPTIONS\n/ /dev/sda1 ext4 rw (mock)", "dim"],
+    ["lsmod", "Module                  Size  Used by\nnf_conntrack … (mock)", "dim"],
+    ["modinfo", "modinfo: specify module name (stub)", "dim"],
+    ["dmesg", "[0.000000] Linux version 6.x … (first lines, mock)", "dim"],
+    ["journalctl", "Jan 02 10:01 systemd[1]: Started … (mock)", "dim"],
+    ["systemctl", "UNIT LIST … cyberlab.service active (mock)", "dim"],
+    ["service", "Usage: service <name> <action> (stub — no root)", "dim"],
+    ["crontab", "no crontab for " + USER + " (mock)", "dim"],
+    ["at", "at: not installed in sim (stub)", "dim"],
+    ["sleep", "sleep: duration required (stub)", "dim"],
+    ["true", "(exit status 0 — mock)", "dim"],
+    ["false", "(exits 1 in real bash — mock ok)", "dim"],
+    ["printf", "printf: use echo in sim (stub)", "dim"],
+    ["test", "test: expression required (stub)", "dim"],
+    ["expr", "expr: too few arguments (stub)", "dim"],
+    ["seq", "1\n2\n3\n… (mock)", "out"],
+    ["yes", "y\ny\ny\n… (truncated — stub)", "dim"],
+    ["head", "head: file operand required (stub)", "dim"],
+    ["tail", "tail: file operand required (stub)", "dim"],
+    ["sort", "sort: no input (stub)", "dim"],
+    ["uniq", "uniq: no input (stub)", "dim"],
+    ["wc", "0 0 0 (stub: no stdin)", "out"],
+    ["cut", "cut: option required (stub)", "dim"],
+    ["tr", "tr: missing operand (stub)", "dim"],
+    ["paste", "paste: no files (stub)", "dim"],
+    ["cmp", "cmp: missing file after (stub)", "dim"],
+    ["diff", "diff: missing operand (stub)", "dim"],
+    ["patch", "patch: no file (stub)", "dim"],
+    ["file", "file: needs path (stub)", "dim"],
+    ["strings", "strings: file required (stub)", "dim"],
+    ["od", "od: no files (stub)", "dim"],
+    ["xxd", "xxd: no input (stub)", "dim"],
+    ["base64", "base64: no input (stub)", "dim"],
+    ["md5sum", "md5sum: no files (stub)", "dim"],
+    ["sha256sum", "sha256sum: no files (stub)", "dim"],
+    ["cksum", "cksum: no files (stub)", "dim"],
+    ["grep", "grep: pattern required (stub)", "dim"],
+    ["egrep", "egrep: pattern required (stub)", "dim"],
+    ["fgrep", "fgrep: pattern required (stub)", "dim"],
+    ["sed", "sed: no input files (stub)", "dim"],
+    ["awk", "awk: syntax error stub", "dim"],
+    ["vi", "(stub) Qo‘lda cat/touch — bu yerda fullscreen emos", "dim"],
+    ["vim", "(stub) Ko‘rinadi lekin fullscreen yo‘q", "dim"],
+    ["nano", "(stub) Foydalanish uchun real SSH kerak", "dim"],
+    ["less", "(stub) Use cat bilan fayl o‘qing", "dim"],
+    ["more", "(stub) Use cat", "dim"],
+    ["which", "which: argument required", "dim"],
+    ["whereis", "whereis: insufficient arguments", "dim"],
+    ["type", "type: operand required", "dim"],
+    ["command", "(builtin listing skipped — stub)", "dim"],
+    ["alias", "(no aliases — stub)", "dim"],
+    ["export", "(stub — interaktiv sozlash simulyatsiya qilinmagan)", "dim"],
+    ["set", "+o … (stub)", "dim"],
+    ["unset", "unset: not enough arguments (stub)", "dim"],
+    ["env", "PATH=/usr/bin:/bin\nHOME=/home/" + USER + "\nTERM=xterm\n… (mock)", "out"],
+    ["printenv", "PATH=/usr/bin:/bin\nHOME=/home/" + USER + " (truncated)", "out"],
+    ["readlink", "readlink: missing operand", "dim"],
+    ["realpath", "realpath: missing operand", "dim"],
+    ["basename", "basename: operand missing", "dim"],
+    ["dirname", "dirname: missing operand", "dim"],
+    ["stat", "stat: missing operand", "dim"],
+    ["chmod", "chmod: missing operand", "dim"],
+    ["chown", "chown: missing operand", "dim"],
+    ["chgrp", "chgrp: missing operand", "dim"],
+    ["umask", "0022 (mock)", "out"],
+    ["ln", "ln: missing operand", "dim"],
+    ["cp", "cp: missing file operand", "dim"],
+    ["mv", "mv: missing file operand", "dim"],
+    ["rm", "rm: missing operand", "dim"],
+    ["rmdir", "rmdir: missing operand", "dim"],
+    ["install", "install: missing file operand", "dim"],
+    ["dd", "dd: (stub — bu simulyatorda disk yozilmaydi)", "warn"],
+    ["tar", "tar: Requires one of … (stub)", "dim"],
+    ["gzip", "gzip: stdin: not gzip (stub)", "dim"],
+    ["gunzip", "gunzip: operand missing", "dim"],
+    ["zip", "(stub)", "dim"],
+    ["unzip", "(stub)", "dim"],
+    ["bzip2", "(stub)", "dim"],
+    ["xz", "(stub)", "dim"],
+    ["find", "find: missing argument (stub)", "dim"],
+    ["locate", "locate: command not installed (stub)", "dim"],
+    ["xargs", "(stub — pipe yo‘q)", "dim"],
+    ["ps", "  PID TTY TIME CMD\n  882 pts/0 bash\n 921 pts/0 ps (mock)", "out"],
+    ["pgrep", "pgrep: pattern required", "dim"],
+    ["pkill", "pkill: pattern required — not run (stub)", "dim"],
+    ["kill", "kill: usage: kill pid …", "dim"],
+    ["killall", "killall: no process name", "dim"],
+    ["jobs", "(no saved jobs — stub)", "dim"],
+    ["bg", "(no job control — stub)", "dim"],
+    ["fg", "(no job control — stub)", "dim"],
+    ["nohup", "nohup: missing operand", "dim"],
+    ["nice", "nice: command required", "dim"],
+    ["renice", "renice: missing operand", "dim"],
+    ["top", "(mock) refresh disabled — IDS sinovlarida ps yetarli", "dim"],
+    ["htop", "(stub)", "dim"],
+    ["sysctl", "net.ipv4.ip_forward = 0 (examples, mock)", "dim"],
+    ["ulimit", "unlimited / soft stacks … (stub)", "dim"],
+    ["lsof", "(stub — kern interface yo‘q)", "dim"],
+    ["strace", "strace: attach requires CAP (stub)", "dim"],
+    ["tcpdump-mini", "(stub) tcpdump ishlating", "dim"],
+    ["iptables", "(stub) Qo‘lda root va netfilter kerak — faqat yozuv simulyatsiya", "dim"],
+    ["nft", "(nftables stub)", "dim"],
+    ["iptables-save", "(empty ruleset mock)", "dim"],
+    ["ip6tables", "(stub)", "dim"],
+    ["ufw", "Status inactive (stub)", "dim"],
+    ["firewalld", "not running (stub)", "dim"],
+    ["ss", "Netid State … (empty or sample, stub)", "dim"],
+    ["netstat", "Active Internet connections (mock)\ntcp …", "dim"],
+    ["ip", 'Usage: ip [OPTIONS] {addr|route|…} — try: ip addr (stub)', "dim"],
+    ["ifconfig", "eth0 … inet 192.168.1.10 … (mock)", "out"],
+    ["route", "Kernel IP routing table\n0.0.0.0 via 192.168.1.1 (mock)", "out"],
+    ["arp", "? (192.168.1.1) at aa:bb:cc:… (mock)", "dim"],
+    ["ip-neigh", "(stub) realda: ip neigh", "dim"],
+    ["bridge", "(stub)", "dim"],
+    ["ethtool", "Settings for eth0: … (stub)", "dim"],
+    ["mii-tool", "(deprecated stub)", "dim"],
+    ["iwconfig", "(no wireless extensions — stub)", "dim"],
+    ["nmcli", "DEVICE STATE … (mock)", "dim"],
+    ["curl", '(stub) Curl — brauzer yoki \'curl\' real hostdan foydalang', "dim"],
+    ["wget", "(stub)", "dim"],
+    ["nc", "(netcat) usage: nc host port (stub)", "dim"],
+    ["netcat", "(netcat) usage (stub)", "dim"],
+    ["telnet", "telnet: command stub — plaintext xavfsiz emas", "warn"],
+    ["ssh", "(stub) ulanish uchun real sshd kerak", "dim"],
+    ["scp", "(stub)", "dim"],
+    ["rsync", "(stub)", "dim"],
+    ["ftp", "(stub)", "dim"],
+    ["dig", "; <<>> DiG mock <<>> cyberlab.invalid\nSERVFAIL stub", "dim"],
+    ["nslookup", "** server can't find cyberlab.invalid: NXDOMAIN (mock)", "dim"],
+    ["host", "Host cyberlab.local not found (mock)", "dim"],
+    ["resolver", "(stub)", "dim"],
+    ["resolvectl", "(stub)", "dim"],
+    ["nm-online", "(stub)", "dim"],
+    ["ping6", "(stub)", "dim"],
+    ["traceroute", "traceroute to 203.0.113.9 … hops … (mock)", "dim"],
+    ["tracepath", "(stub)", "dim"],
+    ["mtr", "(stub)", "dim"],
+    ["nmap", "Starting Nmap … scan report skipped (education stub)", "warn"],
+    ["masscan", "(stub — firewall sinovlarida ehtiyot)", "warn"],
+    ["arp-scan", "(stub)", "dim"],
+    ["openvpn", "(stub)", "dim"],
+    ["wg", "(wireguard stub)", "dim"],
+    ["openssl", "OpenSSL … (version string mock)", "out"],
+    ["s_client", "(use openssl … subcommand stub)", "dim"],
+    ["journalctl-boot", "(alias-ish stub)", "dim"],
+    ["apk", "(Alpine paket boshqaruvchi — bu VM Debian-style stub)", "dim"],
+    ["apt", "(stub) apt update ishlamaydi — bu bor VFS dir emas deb", "dim"],
+    ["apt-get", "(stub)", "dim"],
+    ["dnf", "(stub)", "dim"],
+    ["yum", "(stub)", "dim"],
+    ["pacman", "(stub)", "dim"],
+    ["snap", "(stub)", "dim"],
+    ["flatpak", "(stub)", "dim"],
+    ["pip", "pip … from pip 24.x … (CyberLab stub — Python global emas)", "dim"],
+    ["python", "Python 3.12.x stub — konsol uchun brauzer emas.", "dim"],
+    ["python3", "Same as python stub.", "dim"],
+    ["gcc", "(compiler stub)", "dim"],
+    ["make", "(stub)", "dim"],
+    ["cargo", "(stub)", "dim"],
+    ["git", "(stub) haqiqiy git GitHub uchun alohida", "dim"],
+    ["docker", "(stub)", "dim"],
+    ["kubectl", "(stub)", "dim"],
+    ["helm", "(stub)", "dim"],
+    ["journalctl-help", "(stub)", "dim"]]
+  );
+
+  /** uname-a yordam uchun alohida: 'uname-a' boshqa — aslida foydalanuvchi yozmasin */
+  (function bulkRegisterMocks() {
+    var m;
+    for (m = 0; m < MOCK_COMMAND_MESSAGES.length; m += 1) {
+      var row = MOCK_COMMAND_MESSAGES[m];
+      var cname = row[0];
+      var cmsg = row[1];
+      var ccls = row[2];
+      register(cname, (function (msgText, cls) {
+        return function () {
+          if (!msgText) {
+            return [];
+          }
+          return [{ cls: cls, text: msgText }];
+        };
+      })(cmsg, ccls || "dim"));
+    }
+  })();
+
+  var _unameStub = COMMAND_TABLE.uname;
+  register("uname", function (ua) {
+    var flags = ua.join(" ");
+    if (/\b-a\b/.test(flags) || /--all\b/.test(flags)) {
+      return [
+        {
+          cls: "out",
+          text:
+            "Linux cyberlab-vm 6.x-generic #1 SMP x86_64 GNU/Linux… " +
+            "PRETTY_NAME=\"CyberLab\" (uname -a, mock)",
+        },
+      ];
+    }
+    return _unameStub();
+  });
+
+  function cmdInnerHelp() {
+    var stubN = MOCK_COMMAND_MESSAGES.length;
+    var text =
+      "CyberLab bash (VFS). Asosiy: ls cd pwd mkdir touch cat echo clear history\n" +
+      "  # izoh   sudo … (sim)   tcpdump / tshark (mock capture, ~1s)\n" +
+      "Sim: analyze-packet  ids-status  start-ids  ping [-flood]\n" +
+      "Suricata (IDS): suricata-install · suricata-home-net … · suricata-alert-ip add … · suricata-start\n" +
+      "To‘liq stub ro‘yxat (~" +
+      stubN +
+      "+ nom): commands  yoki list-commands\n" +
+      "uname -a ham ishlaydi. Strelkalar tarix.";
+    return [{ cls: "dim", text: text }];
+  }
+
+  function cmdCommandsList() {
+    var core = ["ls", "cd", "pwd", "mkdir", "touch", "cat", "echo", "clear", "history", "help", "tcpdump", "tshark"];
+    var sec = [
+      "analyze-packet",
+      "ids-status",
+      "start-ids",
+      "ping",
+      "suricata-install",
+      "suricata-home-net",
+      "suricata-alert-ip",
+      "suricata-start",
+      "suricata-stop",
+      "suricata-status",
+    ];
+    var mockNames = MOCK_COMMAND_MESSAGES.map(function (r) {
+      return r[0];
+    });
+    mockNames.sort();
+    var text =
+      "=== Ro‘yxat (mock stub + asosiy shell) ~" +
+      mockNames.length +
+      "+ ta nom bajariladi. ===\n" +
+      "Asosiy/VFS:\n  " +
+      core.join("  ") +
+      "\n" +
+      "Xavfsizlik sim:\n  " +
+      sec.join("  ") +
+      "\n" +
+      "Stub buyruqlar (har biri javob chiqaradi):\n  " +
+      mockNames.join("  ") +
+      "\n" +
+      "Yana boshqa nom kiritsangiz: command not found.";
+    return [{ cls: "dim", text: text }];
+  }
+
   register("ls", cmdLs);
   register("cd", cmdCd);
   register("pwd", cmdPwd);
   register("cat", cmdCat);
   register("echo", cmdEcho);
   register("clear", cmdClear);
-  register("help", cmdHelp);
   register("mkdir", cmdMkdir);
   register("touch", cmdTouch);
   register("history", cmdHistoryList);
@@ -996,6 +1508,15 @@
   register("analyze-packet", cmdAnalyzePacket);
   register("ids-status", cmdIdsStatus);
   register("start-ids", cmdStartIds);
+  register("suricata-install", cmdSuricataInstall);
+  register("suricata-home-net", cmdSuricataHomeNet);
+  register("suricata-alert-ip", cmdSuricataAlertIp);
+  register("suricata-start", cmdSuricataStart);
+  register("suricata-stop", cmdSuricataStop);
+  register("suricata-status", cmdSuricataStatus);
+  register("commands", cmdCommandsList);
+  register("list-commands", cmdCommandsList);
+  register("help", cmdInnerHelp);
 
   function dispatchShell(trimmed) {
     trimmed = stripLeadingSudo(trimmed);
@@ -1170,6 +1691,7 @@
   }
   syncFieldPadding();
   syncEcho();
+  syncSuricataFilesToVFS();
 
   if (typeof window !== "undefined") {
     window.CyberLabShell = {

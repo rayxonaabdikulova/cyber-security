@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cybersecurity — Asosiy</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Asosiy kontentga o‘tish</a>
+
+  <header class="topnav" role="banner">
+    <div class="topnav__inner">
+      <button
+        type="button"
+        class="topnav__menu-toggle"
+        id="sidebar-toggle"
+        aria-controls="sidebar"
+        aria-expanded="false"
+        aria-label="Yon panelni yopish yoki ochish"
+      >
+        <span class="topnav__menu-icon" aria-hidden="true"></span>
+      </button>
+
+      <a href="#kirish" class="topnav__logo" aria-label="Bosh sahifa">
+        <span class="topnav__logo-mark"></span>
+        <span class="topnav__logo-text">Cyber<span class="topnav__logo-accent">Lab</span></span>
+      </a>
+
+      <nav class="topnav__links" aria-label="Asosiy navigatsiya">
+        <a href="#kirish">Bosh sahifa</a>
+        <a href="#dpi">Hujjatlar</a>
+        <a href="#dpi">Misol</a>
+        <a href="#test">Resurslar</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside
+      class="sidebar"
+      id="sidebar"
+      aria-label="Bo‘limlar bo‘yicha navigatsiya"
+    >
+      <nav class="sidebar__nav">
+        <a href="#kirish" class="sidebar__link is-active" data-section="kirish">Kirish</a>
+        <a href="#dpi" class="sidebar__link" data-section="dpi">DPI (Chuqur Tahlil)</a>
+        <a href="#ids" class="sidebar__link" data-section="ids">IDS (Aniqlash)</a>
+        <a href="#ips" class="sidebar__link" data-section="ips">IPS (Oldini Olish)</a>
+        <a href="#test" class="sidebar__link" data-section="test">Test (Quiz)</a>
+      </nav>
+    </aside>
+
+    <div class="sidebar-backdrop" id="sidebar-backdrop" hidden aria-hidden="true"></div>
+
+    <main class="main" id="main-content" role="main">
+      <article class="content" id="kirish" data-panel-group="kirish">
+        <h1 class="content__title content__title--intro">
+          Tarmoq Xavfsizligida Paketlarni Chuqur Tahlil Qilish va Kirishni Aniqlash /
+          Oldini Olish Tizimlari
+        </h1>
+        <p>
+          <strong>Tarmoq xavfsizligi</strong> — bu ma’lumotlarning maxfiyligi, butunligi
+          va mavjudligini tarmoq infratuzilmasida texnik va tashkiliy choralari bilan
+          himoya qilish sohasi. U serverlar, marshrutizatorlar, kommutatorlar va
+          foydalanuvchi tugunlari o‘rtasidagi aloqa kanallarida ruxsatsiz kirish,
+          ma’lumotni o‘g‘irlash, xizmatni rad etish (DoS) va boshqa tahdidlarning oldini
+          olish yoki ularning oqibatlarini yumshatishga qaratilgan.
+        </p>
+        <p>
+          Zamonaviy tarmoqlarda xavfsizlik choralari ko‘pincha trafigi tahliliga,
+          siyosatlar (politikalar) bilan sessiyalarni boshqarishga va shubhali
+          harakatlarni erta aniqlashga tayangan holda quriladi. Shu kontekstda
+          <em>chuqur paket tekshiruvi (DPI)</em> trafigi iloji boricha to‘liqroq
+          tushunishni ta’minlaydi; <em>kirishni aniqlash tizimlari (IDS)</em> esa
+          hodisalarni qayd etish va signal berishga xizmat qiladi; <em>kirishning oldini
+          olish tizimlari (IPS)</em> esa aniqlangan tahdidlarga faol javob berish
+          imkonini beradi. Ushbu modulda avvalo DPI tamoyillari batafsil yoritiladi.
+        </p>
+      </article>
+
+      <article class="content" id="dpi" data-panel-group="dpi">
+        <h1>DPI (Deep Packet Inspection)</h1>
+        <p>
+          <strong>DPI (Deep Packet Inspection, chuqur paket tekshiruvi)</strong> — bu
+          tarmoq trafigidagi paketlarni faqat <em>uchunchi va to‘rtinchi qatlam
+          sarlavhalari</em> (masalan, IP va TCP/UDP) bilan cheklab qolmasdan, ularning
+          <strong>yuklamasi (payload)</strong> — ya’ni foydali yukning o‘zi — gacha
+          tahlil qilish imkonini beruvchi yondashuv. Oddiy marshrutlash va oddiy
+          filtrlash odatda manzil, port va protokol bo‘yicha qaror qabul qiladi; DPI
+          esa ilova protokolini (HTTP, DNS, TLS ichidagi ma’lum maydonlar va hokazo)
+          ochib, imzo, siyosat va xatti-harakat qoidalarini aynan <em>ma’lumot
+          tanasiga</em> qo‘llaydi.
+        </p>
+        <p>
+          Amaliyotda DPI ko‘pincha korporativ proksi va “secure web gateway”larda
+          HTTP/HTTPS trafigi ustidan <strong>kontent filtrlash</strong> uchun
+          qo‘llanadi: masalan, foydalanuvchi brauzeridan chiqadigan so‘rov matnida
+          noqonuniy toifadagi URL yoki yuklama fragmentlari qidiriladi. Alohida
+          holat — <strong>TLS inspection</strong> (markazda sertifikat bilan
+          “ochib-yopish”): shunda shifrlangan kanal ichidagi yuklama qayta o‘qiladi va
+          siyosatga solishtiriladi (bu yerda maxfiylik va huquqiy chegaralar alohida
+          muhokama qilinadi). Yana bir misol — tibbiyot yoki moliya tashkilotlarida
+          <strong>DLP (ma’lumot sizib chiqishining oldini olish)</strong> DPI yordamida
+          hujjatlar ichidagi shaxsiy identifikatorlar yoki maxfiy shablonlarni aniqlash
+          uchun ishlatiladi.
+        </p>
+
+        <h2 class="content__h2">Yuklama (payload) ichini qadam-baqadam qanday ko‘radi?</h2>
+        <p>
+          Quyidagi ketma-ketlik tipik DPI mexanizmini soddalashtirib beradi; haqiqiy
+          qurilmalar parallel jarayonlar va apparat tezlatgichlari bilan boyitiladi.
+        </p>
+        <ol>
+          <li>
+            <strong>Freym va sarlavha zanjirini ajratish.</strong> Kanal (Ethernet,
+            Wi‑Fi va hokazo) darajasidan boshlab IP va transport (TCP/UDP) sarlavhalari
+            o‘qiladi — bu yerda faqat <em>yuklama qayerdan boshlanishini</em> aniqlash
+            uchun ofset va uzunliklar (maydon chegaralari) hisoblanadi; DPI shu
+            nuqtadan keyin “sarlavhadan pastroq” ma’lumotga o‘tadi.
+          </li>
+          <li>
+            <strong>Oqimni qayta qurish (TCP reassembly).</strong> Katta HTTP javobi yoki
+            fayl ko‘chirmasi bir nechta TCP segmentlariga bo‘lingan bo‘ladi. DPI
+            holat jadvali (connection state) yordamida segmentlarni tartibda yig‘ib,
+            yagona mantiqiy <em>ilova yuklamasini</em> hosil qiladi — aks holda
+            imzolar segment chetidagi bo‘laklarda “ko‘rinmay” qolishi mumkin.
+          </li>
+          <li>
+            <strong>Ilova darajasini dekodlash.</strong> Masalan, HTTP bo‘lsa, metod,
+            yo‘l, sarlavhalar va tanani ajratiladi; DNS bo‘lsa, savol nomi (QNAME) va
+            RR ma’lumotlari; TLS bo‘lsa, agar trafigi ochilsa yoki metadata (SNI, ALPN)
+            mavjud bo‘lsa, qaysi xizmatga ulanayotganini aniqlash mumkin — bu hammasi
+            IP sarlavhasidan keyingi <strong>payload tahlili</strong> zanjirining
+            qismidir.
+          </li>
+          <li>
+            <strong>Matn, ikkilik va protokol imzolari.</strong> Yuklama ichida ASCII
+            qatorlar, ikkilik namunalar (file magic), MIME turi, JSON/XML tuzilmasi
+            yoki noqonuniy buyruq fragmentlari qidiriladi. Bu bosqichda “nima
+            manzilga ketdi?” emas, balki <em>“nima yuborilmoqda?”</em> savoliga javab
+            beriladi.
+          </li>
+          <li>
+            <strong>Siyosat va xavf-xavf baholash.</strong> Topilgan tuzilma IDS/IPS
+            qoidalariga, DLP siyosatiga yoki ilovalar ro‘yxagiga uzatiladi: ruxsat,
+            ogohlantirish yoki blok holatlari shu yerda qabul qilinadi.
+          </li>
+        </ol>
+        <p>
+          Xulosa: IP sarlavhasi “kim kimga” degan yo‘nalishni beradi; DPI esa trafigi
+          <strong>ichkarisidagi ma’not</strong> va <strong>xavf belgilari</strong>ni
+          ochadi. Shuning uchun zamonaviy tahdidlar ko‘pincha sarlavhani “toza”
+          tutib, zararni aynan yuklamaga yashirishga intiladi — va aynan shu sababli
+          chuqur tekshiruv muhim ahamiyat kasb etadi.
+        </p>
+
+        <h2 class="content__h2">Texnik va tashkiliy e’tibor nuqtalari</h2>
+        <p>
+          DPI yuqori tezlikda katta hajmdagi trafigi qayta ishlashni talab qiladi;
+          kechikish (latency) va CPU yukini rejalashtirish zarur. Shuningdek, shaxsiy
+          ma’lumotlarni faqat qonuniy maqsad va minimallashtirish tamoyili bilan
+          o‘qish, loglarni saqlash muddatlari va foydalanuvchi xabarnomasi kabi
+          tashkiliy choralarsiz texnik yechim yetarli emas. Tahlilchilar uchun
+          trafigini ushlash (<em>packet capture</em>) va CLI vositalari (quyidagi
+          misollar) amaliy tekshiruvning bir qismi bo‘lib qoladi.
+        </p>
+
+        <div class="tryit" aria-label="Amaliy buyruq namunasi">
+          <div class="tryit__ribbon">O‘zingiz sinang</div>
+          <div class="tryit__body">
+            <button
+              type="button"
+              class="tryit__copy"
+              data-copy-target="dpi-terminal-sample"
+              aria-label="Terminal buyruqlarini vaqtinchalik xotiraga nusxalash"
+            >
+              Nusxa olish
+            </button>
+            <pre
+              class="tryit__pre"
+              id="dpi-terminal-sample"
+            ><code># Paket oqimini matn va hex ko‘rinishida kuzatish (tcpdump)
+sudo tcpdump -i eth0 -nn -s0 -X -c 30 'tcp port 443'
+
+# Wireshark CLI: batafsil protokol daraxti (tshark)
+tshark -i eth0 -c 20 -f "tcp port 80" -V</code></pre>
+          </div>
+        </div>
+
+        <section class="term-section" aria-labelledby="term-heading">
+          <h2 id="term-heading" class="content__h2">Interaktiv terminal (simulyator)</h2>
+          <p class="content__lead">
+            Qora terminal, yashil prompt: <code>ls</code>, <code>cd</code>, <code>sudo …</code>,
+            <code># izoh</code>, <code>tcpdump</code> / <code>tshark</code> (mock capture, ~1s),
+            <code>mkdir</code>, <code>touch</code>, <code>history</code> (↑/↓). VFS:
+            <code>cat /var/log/syslog</code>.
+          </p>
+          <div
+            class="term"
+            id="packet-terminal"
+            role="application"
+            aria-roledescription="bash uslubidagi terminal simulyatori"
+            aria-label="CyberLab shell simulyatori"
+          >
+            <div class="term__toolbar" id="term-toolbar">user@cyberlab-vm — Bash (VFS simulation)</div>
+            <div class="term__scroll" id="term-scroll" aria-live="polite" aria-relevant="additions">
+              <div class="term__line term__line--dim">
+                CyberLab shell — <code>help</code>. <code>#</code> izoh, <code>sudo ls</code> = <code>ls</code>.
+                Mock: <code>tcpdump -i eth0 -nn 'tcp port 443'</code>
+              </div>
+            </div>
+            <div class="term__inputline" id="term-inputline">
+              <span class="term__prompt term__prompt--dynamic" id="term-prompt-prefix" aria-hidden="true"
+                >user@cyberlab-vm:~$</span
+              >
+              <div class="term__echoarea" aria-hidden="true">
+                <span class="term__echo" id="term-echo"></span><span class="term__caret" id="term-caret">█</span>
+              </div>
+              <input
+                type="text"
+                class="term__field"
+                id="term-field"
+                autocomplete="off"
+                spellcheck="false"
+                autocapitalize="off"
+                aria-label="Shell buyrug‘i"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section class="inspector-section" aria-labelledby="inspector-heading">
+          <h2 id="inspector-heading" class="content__h2">Packet Inspector (DPI simulyatori)</h2>
+          <p class="content__lead">
+            Paket tafsilotlarini kiriting. DPI yuklamani skanerlaydi; manba IP qora
+            ro‘yxat bilan solishtiriladi (sinov: <code>192.168.1.99</code>).
+          </p>
+          <form class="inspector" id="dpi-inspector-form" novalidate>
+            <div class="inspector__row">
+              <label class="inspector__field" for="inspector-src">
+                <span class="inspector__label">Source IP</span>
+                <input
+                  type="text"
+                  class="inspector__input"
+                  id="inspector-src"
+                  name="srcIp"
+                  placeholder="192.168.1.10"
+                  autocomplete="off"
+                />
+              </label>
+              <label class="inspector__field" for="inspector-dst">
+                <span class="inspector__label">Destination IP</span>
+                <input
+                  type="text"
+                  class="inspector__input"
+                  id="inspector-dst"
+                  name="dstIp"
+                  placeholder="10.0.0.5"
+                  autocomplete="off"
+                />
+              </label>
+            </div>
+            <label class="inspector__field inspector__field--block" for="inspector-payload">
+              <span class="inspector__label">Payload (Data)</span>
+              <textarea
+                class="inspector__textarea"
+                id="inspector-payload"
+                name="payload"
+                rows="7"
+                placeholder="Masalan: GET / HTTP/1.1 yoki yuklama matni..."
+                spellcheck="false"
+              ></textarea>
+            </label>
+            <div class="inspector__actions">
+              <button type="submit" class="inspector__submit">DPI tahlilini ishga tushirish</button>
+            </div>
+          </form>
+          <div
+            class="inspector-result"
+            id="dpi-inspector-result"
+            role="status"
+            aria-live="polite"
+            hidden
+          ></div>
+        </section>
+
+        <section
+          class="file-analyzer-section"
+          id="file-analyzer-section"
+          aria-labelledby="file-analyzer-heading"
+        >
+          <h2 id="file-analyzer-heading" class="content__h2">File Analyzer (DPI Simulation)</h2>
+          <p class="content__lead">
+            Istalgan turdagi fayllarni (<code>.apk</code>, <code>.exe</code>, <code>.zip</code>,
+            skriptlar va boshqalar) torting yoki tanlang; butun papkani ham tortish yoki
+            <strong>Papkani tanlash</strong> mumkin — tahlil uchun birinchi fayl serverga yuboriladi.
+            <strong>FastAPI</strong> <code>/api/scan-file</code> SHA-256 hisoblaydi va mock chuqur
+            ikkilik DPI skanerini ishga tushiradi.
+          </p>
+          <div
+            class="file-drop"
+            id="file-drop"
+            tabindex="0"
+            role="region"
+            aria-label="Fayl yoki papka tashlash. Torting yoki tugmalar bilan tanlang."
+          >
+            <input
+              type="file"
+              id="file-input"
+              class="file-drop__input"
+              multiple
+              aria-label="Har qanday turdagi faylni tanlash"
+            />
+            <input
+              type="file"
+              id="folder-input"
+              class="file-drop__input"
+              webkitdirectory=""
+              mozdirectory=""
+              aria-label="Papkani tanlash"
+            />
+            <div class="file-drop__visual" id="file-drop-visual">
+              <span class="file-drop__icon" aria-hidden="true">📄</span>
+              <p class="file-drop__title">Fayl yoki papkani shu yerga torting</p>
+              <p class="file-drop__hint">
+                Barcha kengaytmalar · papka tashlashda brauzer ichki fayllarni ro‘yxatlaydi ·
+                server limiti: <strong id="file-max-label">50 MB</strong> (
+                <code>POST /api/scan-file</code>)
+              </p>
+              <div class="file-drop__actions">
+                <button type="button" class="file-drop__browse" id="file-browse-btn">
+                  Fayl tanlash
+                </button>
+                <button type="button" class="file-drop__browse file-drop__browse--secondary" id="folder-browse-btn">
+                  Papkani tanlash
+                </button>
+              </div>
+            </div>
+          </div>
+          <p class="file-drop__meta" id="file-meta" aria-live="polite"></p>
+          <div
+            class="inspector-result file-analyzer-result"
+            id="file-analyzer-result"
+            role="status"
+            aria-live="assertive"
+            hidden
+          ></div>
+          <details class="file-analyzer__help">
+            <summary>FastAPI <code>/api/scan-file</code> va test yuklamalari</summary>
+            <div class="file-analyzer__help-body">
+              <ol>
+                <li>
+                  API: <code>cd api</code> → <code>pip install -r requirements.txt</code> →
+                  <code>uvicorn main:app --reload --host 127.0.0.1 --port 8000</code>. Tekshiruv:
+                  brauzerda <code>http://127.0.0.1:8000/health</code>
+                </li>
+                <li>
+                  <strong>Eng oson:</strong> sahifani faqat
+                  <code>http://127.0.0.1:8000</code> manzilidan oching (FastAPI endi
+                  <code>index.html</code> / <code>style.css</code> / <code>script.js</code> ni
+                  ham beradi). Skaner bir xil serverga so‘rov yuboradi — <em>Failed to fetch</em>
+                  bo‘lmaydi. Diskdan (<code>file://</code>) ochmang.
+                </li>
+                <li>
+                  Muqobil: alohida statik server —
+                  <code>python -m http.server 5500</code> va
+                  <code>http://127.0.0.1:5500/index.html</code> (API baribir 8000-portda).
+                </li>
+                <li>
+                  <strong>Internet (HTTP/HTTPS va domen):</strong>
+                  (<strong>1</strong>) Registratorada domen xarid qiling.
+                  (<strong>2</strong>) DNS da <strong>A yozuv</strong>i — domen → serveringiz IPv4 manzili
+                  (bulutda platforma bergan target / CDN bo‘lsa, ularning yo‘riqnomasi).
+                  (<strong>3</strong>) Serverda konteyner yoki <code>uvicorn</code>; tashqarning
+                  HTTPS sertifikati — bulut (“Custom domain”), yoki VPS da Caddy/nginx + Let’s Encrypt.
+                  Sahifa <code>https://domen.siz/</code> dan ochilsa skaner shu domenning
+                  <code>/api/scan-file</code> ga yuboradi (local emas).
+                  VPS da xavfsizlik uchun serverda:
+                  <code>ALLOWED_HOSTS=domen.siz,www.domen.siz</code>.
+                </li>
+              </ol>
+            </div>
+          </details>
+        </section>
+      </article>
+
+      <article class="content" id="ids" data-panel-group="ids">
+        <h1>IDS (Intrusion Detection System)</h1>
+        <p>
+          <strong>IDS (Intrusion Detection System, kirishni aniqlash tizimi)</strong> —
+          tarmoq trafigi va tizim hodisalarini kuzatish, ularni qoida va imzolar
+          (signature) asosida tahlil qilish hamda shubhali yoki zararli faollikni
+          <em>aniqlash</em> uchun mo‘ljallangan yechim. Asosiy farq shundaki, IDS
+          odatda <strong>passiv</strong> rejimda ishlaydi: u trafigi o‘qiydi yoki
+          nusxasini tahlil qiladi, hodisalarni qayd etadi va administrator yoki
+          SOC (xavfsizlik operatsiyalar markazi) uchun <strong>ogohlantirish
+          (alert)</strong> yaratadi, lekin trafigi o‘zi <strong>bloklamaydi</strong> va
+          sessiyani to‘xtatmaydi.
+        </p>
+        <p>
+          Passivligi IDS ni tarmoqning “ko‘rinishmaydigan” kuzatuvchisiga o‘xshatadi:
+          masalan, trafigi ko‘zgusidan (mirror) yoki maxsus sensor orqali olingan
+          nusxalar tahlil qilinadi. Bu yondashuv ish faoliyatiga kamroq aralashadi,
+          lekin javob chorasi inson yoki boshqa avtomatlashtirish (playbook, SOAR)
+          qatlamida keyinroq qo‘llanadi. IDS qoidalari odatda ma’lum tahdid
+          namunalari, anomaliya aniqlash va ijtimoiy tahlil (behavioral) elementlarini
+          birlashtiradi.
+        </p>
+        <p>
+          IDS ning afzalligi — xatolik (false positive) holatlarida asosiy tarmoq
+          oqimini bo‘g‘ab qo‘ymasdan hodisani o‘rganish imkoniyati; kamchiligi esa
+          tahdid aniqlanganda <strong>darhol to‘siq</strong> qo‘ymasligi: zararli
+          paketlar vaqtinchalik davom etishi mumkin, shuning uchun IDS ko‘pincha IPS
+          yoki firewall siyosatlari bilan juftlashadi.
+        </p>
+        <p>
+          Amaliyotda IDS odatda <strong>SIEM</strong> tizimiga hodisa vaqtini, manba
+          va ta’sir qatorini (<em>IOC</em>) uzatadi; SOC analitiklari qoida
+          yangilanishlari, “hunting” va korrelyatsiya (bir nechta signalni birlashtirish)
+          orqali hujumni tasdiqlaydi. Shuningdek, <strong>“boshlang‘ich ogohlantirish”</strong>
+          rejimida yangi qoidalar avval faqat logga yozilib sinovdan o‘tkaziladi — bu
+          xizmat uzilishini kamaytirish uchun muhim amaliyot hisoblanadi.
+        </p>
+
+        <h2 class="content__h2">IDS odatda aniqlaydigan uchta keng tarqalgan hujum turi</h2>
+        <p>
+          Quyidagi misollar tipik <em>signature</em> yoki <em>anomaly</em> asosida
+          signal berishni anglatadi; trafigi o‘zi IDS tomonidan to‘xtatilmaydi.
+        </p>
+        <ol>
+          <li>
+            <strong>Port skanerlash va razvedka (reconnaissance).</strong> Bir xil
+            manzildan qisqa vaqt ichida yuzlab ketma-ket portlarga ulanish urinishlari
+            (masalan, SYN skan) tarmoq xaritasini chizish uchun ishlatiladi. IDS bunday
+            <em>ketma-ketlik</em>ni “odatdan tashqari port diapazoni” sifatida belgilab,
+            SOC ga “razvedka bosqichi” haqida ogohlantirish beradi.
+          </li>
+          <li>
+            <strong>Brutefors va kredensial to‘ldirish (credential stuffing).</strong>
+            Masalan, HTTPS orqali veb‑kirish formasiga soniyasiga o‘nlab noto‘g‘ri
+            parol yuborilishi: bu holatda yuklama tahlili (HTTP POST tanasi) va
+            tezlik chegaralari birgalikda <em>avtomatlashtirilgan urinish</em> deb
+            baholanadi. IDS hodisani qayd etadi, lekin muvaffaqiyatli autentifikatsiya
+            bo‘lganiga qadar trafigi o‘zi ochiq bo‘lishi mumkin — shuning uchun IPS
+            yoki ilova darajasidagi cheklovlar bilan juftlash tavsiya etiladi.
+          </li>
+          <li>
+            <strong>Zararli dastur bilan aloqa (C2 / beaconing).</strong> Barqaror
+            sessiyada muntazam, kichik hajmdagi chiqish trafigi (masalan, har 60
+            soniyada bir xil URI ga POST) “inson foydalanuvchisi”dan farq qiladi.
+            IDS ushbu <em>xatti-harakat</em>ni anomaliya sifatida yoki ma’lum domen/IP
+            imzolari bilan solishtiradi va ogohlantirish beradi; biroq zararli
+            yuklama allaqachon tizimga tushgan bo‘lishi mumkin — shu sababli zudlik
+            bilan tahlil va izolyatsiya rejasi talab qilinadi.
+          </li>
+        </ol>
+        <p>
+          Qisqacha: IDS <strong>ko‘radi va ogohlantiradi</strong>; u tarmoqning
+          “eshitilish” qobiliyatini kuchaytiradi, ammo <strong>to‘siq</strong>ni odatda
+          boshqa qatlam (IPS, firewall, WAF) qo‘llaydi.
+        </p>
+      </article>
+
+      <article class="content" id="ips" data-panel-group="ips">
+        <h1>IPS (Intrusion Prevention System)</h1>
+        <p>
+          <strong>IPS (Intrusion Prevention System, kirishning oldini olish
+          tizimi)</strong> — IDS ga o‘xshash tahlil mexanizmlaridan foydalanadi, ammo
+          asosiy vazifasi <em>faol himoya</em>: aniqlangan tahdid yoki siyosatni
+          buzish holatida tizim <strong>aktiv</strong> harakat qiladi — masalan,
+          paketni tashlash, sessiyani uzish, manzilni vaqtincha bloklash yoki
+          trafigi qayta yo‘naltirish. Shuning uchun IPS trafigi odatda
+          <strong>to‘g‘ridan-to‘g‘ri oqimda (inline)</strong> joylashadi va qaror
+          millisekundlarda qabul qilinadi.
+        </p>
+        <p>
+          Aktivligi IPS ni “tosiqchi” va “ijrochi” qilib belgilaydi: u nafaqat
+          ogohlantirish beradi, balki tarmoq yoki ilova darajasida <strong>bloklash
+          (prevention)</strong> chorasini qo‘llaydi. Bu real vaqt himoyasini
+          kuchaytiradi, biroq noto‘g‘ri sozlangan qoidalar xizmatni uzilishiga (false
+          positive) olib kelishi mumkin; shu sababli IPS profillari va sinov
+          muhitlarida sinchiklab sozlanadi, “monitor-only” rejimlari bilan bosqichma-bosqich joriy etiladi.
+        </p>
+        <p>
+          Zamonaviy arxitekturalarda IDS va IPS funksiyalari bitta qurilmada yoki
+          xavfsizlik platformasida birlashtirilishi mumkin (masalan, NGFW ichida).
+          Kontseptual jihatdan esa farq barqaror: <strong>IDS — kuzatish va
+          signal</strong>, <strong>IPS — tahdidni faol bartaraf etish</strong>.
+        </p>
+        <p>
+          Amaliyotda IPS ko‘pincha <strong>NGFW</strong> yoki maxsus
+          <strong>network IPS</strong> appliansida “default deny” qoidalariga yaqin
+          profillar bilan ishlaydi: CVE ga mos exploit trafigi, ma’lum botnet
+          protokollari yoki DDoS hujumi paytida avtomatik <em>drop/reset</em> choralari
+          qo‘llanadi. Qo‘shimcha misol — korporativ chegarada <strong>TLS
+          termination</strong> qatlamida WAF/IPS birgalikda HTTP yuklamasidagi
+          noqonuniy buyruqlarni kesib tashlash: bu yerda ham qaror millisekundlarda
+          chiqadi.
+        </p>
+
+        <h2 class="content__h2">IPS odatda to‘liq bloklaydigan uchta hujum turi</h2>
+        <p>
+          Quyidagi holatlar tipik <em>inline</em> IPS yoki integratsiyalangan NGFW
+          qoidalarida “ruxsat yo‘q” (block/drop) natijasini beradi.
+        </p>
+        <ol>
+          <li>
+            <strong>Ma’lum CVE bo‘yicha exploit trafigi.</strong> Masalan, ochiq
+            qoldirilgan xizmatga nisbatan nashr etilgan buffer overflow yoki RCE
+            namunasiga mos keladigan bayt ketma-ketligi aniqlansa, IPS paketlarni
+            zanjiri bo‘yicha <em>tashlaydi</em> yoki sessiyani <em>RST</em> bilan
+            yopadi — hujumchi exploitni to‘liq yetkazib bo‘lmaydi.
+          </li>
+          <li>
+            <strong>Ilova darajasidagi SQL inyeksiya va buyruq inyeksiyasi.</strong>
+            HTTP yuklamasida <code>UNION SELECT</code>, <code>DROP TABLE</code> yoki
+            shell metasimvollar (<code>;</code>, <code>|</code>, <code>`</code>)
+            kombinatsiyasi WAF/IPS imzosi bilan solishtirilganda, zararli so‘rov
+            servergacha yetib bormasdan kesiladi. Bu yerda IPS <strong>yuklama
+            tahlili</strong>ni IDS dan keyin darhol “harakat”ga aylantiradi.
+          </li>
+          <li>
+            <strong>Sessiya va protokol buzilishiga urinish (state violation).</strong>
+            Masalan, TCP “keraksiz” RST yuborish, noto‘g‘ri ketma-ketlikdagi fragmentlar
+            yoki protokol holat mashinasiga zid keladigan DNS/HTTP tuzilmalari
+            aniqlansa, IPS trafigi <em>normalizatsiya</em> yoki <em>drop</em> qiladi —
+            bu ko‘pincha DDoS yoki tunneling urinishlarining bir qismi bo‘ladi.
+          </li>
+        </ol>
+        <p>
+          Xulosa: IPS <strong>aniqlaydi va to‘xtatadi</strong>; shuning uchun u
+          xizmat uzilishiga sezgir — sozlashda “ogohlantirishdan bloklashgacha”
+          bosqichma-bosqich o‘tish va sinov muhiti muhimdir.
+        </p>
+      </article>
+
+      <article class="content content--w3table" id="ids-ips-taqqoslash" data-panel-group="ips">
+        <h2 class="content__h2">IDS va IPS ni taqqoslash</h2>
+        <p class="content__lead">
+          Quyidagi jadval ikkala tizimning funksiyasi, harakati va tarmoqdagi o‘rni
+          bo‘yicha asosiy farqlarni qisqa qilib beradi.
+        </p>
+        <div class="w3-table-wrap" role="region" aria-label="IDS va IPS taqqoslash jadvali" tabindex="0">
+          <table class="w3-table">
+            <thead>
+              <tr>
+                <th scope="col">Mezon</th>
+                <th scope="col">IDS</th>
+                <th scope="col">IPS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Funksiya</th>
+                <td>Kuzatish, tahlil va hodisalar bo‘yicha ogohlantirish (alert)</td>
+                <td>Tahlil + aniqlangan tahdidni bloklash yoki sessiyani uzish</td>
+              </tr>
+              <tr>
+                <th scope="row">Harakat turi</th>
+                <td><strong>Passiv</strong> — trafigi o‘zgartirmaydi, faqat qayd va signal</td>
+                <td><strong>Aktiv</strong> — trafigi to‘sqinlik qiladi yoki choralarni qo‘llaydi</td>
+              </tr>
+              <tr>
+                <th scope="row">Tarmoqda joylashuv</th>
+                <td>Odatda trafigi nusxasi (SPAN/RSPAN, TAP) yoki chetga chiqarilgan sensor</td>
+                <td>Odatda trafigi oqimi kesimida (inline), shaffof yoki marshrutlangan rejim</td>
+              </tr>
+              <tr>
+                <th scope="row">Asosiy natija</th>
+                <td>Kashfiyot va tahlil uchun ma’lumot; SOC jarayonlariga kirish</td>
+                <td>Tahdidning tarqalishini cheklash; real vaqt himoyasi</td>
+              </tr>
+              <tr>
+                <th scope="row">Xavf-xatar</th>
+                <td>Tahdid vaqtincha davom etishi mumkin (blok yo‘q)</td>
+                <td>Noto‘g‘ri qoida xizmatni to‘xtatishi mumkin (sinchiklab sozlash zarur)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="content" id="test" data-panel-group="test">
+        <h1>Test (Quiz)</h1>
+        <p class="quiz__lead">
+          Uchta savol: DPI, IDS va IPS bo‘yicha bilimingizni tekshiring. Variantni
+          tanlang va <strong>Natijani ko‘rish</strong> tugmasini bosing.
+        </p>
+
+        <div class="quiz" id="security-quiz" aria-labelledby="quiz-heading">
+          <h2 id="quiz-heading" class="visually-hidden">Bilimni tekshirish</h2>
+
+          <fieldset class="quiz__block">
+            <legend class="quiz__question">
+              1. DPI (chuqur paket tekshiruvi) trafigi qaysi qismni, sarlavhadan tashqari,
+              tahlil qilish imkonini beradi?
+            </legend>
+            <label class="quiz__option">
+              <input type="radio" name="q1" value="a" />
+              <span>Faqat Ethernet freymining fizik uzunligini</span>
+            </label>
+            <label class="quiz__option">
+              <input type="radio" name="q1" value="b" />
+              <span>Faqat IP va TCP/UDP sarlavhalaridagi manzil-port kombinatsiyasini</span>
+            </label>
+            <label class="quiz__option">
+              <input type="radio" name="q1" value="c" />
+              <span>Paket yuklamasini (payload) va ilg‘or tahlil bilan ilova/protokol
+                belgilarini</span>
+            </label>
+          </fieldset>
+
+          <fieldset class="quiz__block">
+            <legend class="quiz__question">
+              2. IDS ning asosiy vazifasi nimada?
+            </legend>
+            <label class="quiz__option">
+              <input type="radio" name="q2" value="a" />
+              <span>Trafigi inline rejimda faol bloklash va sessiyani avtomatik uzish</span>
+            </label>
+            <label class="quiz__option">
+              <input type="radio" name="q2" value="b" />
+              <span>Kuzatish, tahlil va hodisalar bo‘yicha ogohlantirish (passiv
+                monitoring)</span>
+            </label>
+            <label class="quiz__option">
+              <input type="radio" name="q2" value="c" />
+              <span>Faqat DNS so‘rovlarini shifrlash va foydalanuvchi parollarini
+                saqlash</span>
+            </label>
+          </fieldset>
+
+          <fieldset class="quiz__block">
+            <legend class="quiz__question">
+              3. IPS ning faol (aktiv) xususiyati nimani anglatadi?
+            </legend>
+            <label class="quiz__option">
+              <input type="radio" name="q3" value="a" />
+              <span>Faqat log fayllariga yozish va keyinroq hisobot chiqarish</span>
+            </label>
+            <label class="quiz__option">
+              <input type="radio" name="q3" value="b" />
+              <span>Faqat trafigi ko‘zgusidan nusxa olish (SPAN) va tahlil qilish</span>
+            </label>
+            <label class="quiz__option">
+              <input type="radio" name="q3" value="c" />
+              <span>Aniqlangan tahdidga qarshi bloklash, paketni tashlash yoki sessiyani
+                uzish kabi choralarni qo‘llash</span>
+            </label>
+          </fieldset>
+
+          <div class="quiz__actions">
+            <button type="button" class="quiz__submit" id="quiz-submit">
+              Natijani ko‘rish
+            </button>
+            <button type="button" class="quiz__reset" id="quiz-reset" hidden>
+              Qayta urinish
+            </button>
+          </div>
+
+          <div
+            class="quiz__result"
+            id="quiz-result"
+            role="status"
+            aria-live="polite"
+            hidden
+          ></div>
+        </div>
+      </article>
+    </main>
+  </div>
+
+  <script src="script.js" defer></script>
+</body>
+</html>

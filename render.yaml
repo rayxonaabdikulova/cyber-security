@@ -1,0 +1,11 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Dashboard: New + Blueprint → bu repoga ulang yoki "New Web Service" + Docker.
+
+services:
+  - type: web
+    name: cyberlab-dpi
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health

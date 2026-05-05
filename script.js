@@ -1,6 +1,18 @@
 (function () {
   "use strict";
 
+  if (
+    typeof window !== "undefined" &&
+    window.NodeList &&
+    !window.NodeList.prototype.forEach
+  ) {
+    window.NodeList.prototype.forEach = function (callback, thisArg) {
+      for (var i = 0; i < this.length; i += 1) {
+        callback.call(thisArg, this[i], i, this);
+      }
+    };
+  }
+
   var DESKTOP_MQ = "(min-width: 901px)";
   var STORAGE_KEY = "cyberlab-sidebar-collapsed";
 

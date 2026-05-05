@@ -1446,6 +1446,67 @@
     return _unameStub();
   });
 
+  function aptLikeHandler(args, fallback) {
+    if (!args.length) {
+      return fallback(args);
+    }
+    var action = String(args[0] || "").toLowerCase();
+    var pkgs = args.slice(1).filter(function (x) {
+      return x && x.charAt(0) !== "-";
+    });
+    var hasSuricata = pkgs.some(function (x) {
+      return String(x).toLowerCase() === "suricata";
+    });
+
+    if (action === "update") {
+      return [
+        { cls: "dim", text: "Get:1 cyberlab mirror InRelease [simulated]" },
+        { cls: "ok", text: "Reading package lists... Done (mock)" },
+      ];
+    }
+
+    if (action === "install" && hasSuricata) {
+      state.suricata.installed = true;
+      syncSuricataFilesToVFS();
+      return [
+        {
+          cls: "dim",
+          text: "Reading package lists... Done\nBuilding dependency tree... Done",
+        },
+        { cls: "ok", text: "suricata 7.x installed (simulation)." },
+        {
+          cls: "dim",
+          text:
+            "Keyingi qadamlar: suricata-home-net 192.168.1.0/24 ; suricata-alert-ip add 203.0.113.88 ; suricata-start",
+        },
+      ];
+    }
+
+    if (action === "remove" && hasSuricata) {
+      state.suricata.installed = false;
+      state.suricata.running = false;
+      state.suricata.pid = 0;
+      syncSuricataFilesToVFS();
+      return [{ cls: "warn", text: "suricata removed (simulation)." }];
+    }
+
+    return fallback(args);
+  }
+
+  var _aptStub = COMMAND_TABLE.apt;
+  if (typeof _aptStub === "function") {
+    register("apt", function (args) {
+      return aptLikeHandler(args, _aptStub);
+    });
+  }
+
+  var _aptGetStub = COMMAND_TABLE["apt-get"];
+  if (typeof _aptGetStub === "function") {
+    register("apt-get", function (args) {
+      return aptLikeHandler(args, _aptGetStub);
+    });
+  }
+
   function cmdInnerHelp() {
     var stubN = MOCK_COMMAND_MESSAGES.length;
     var text =
@@ -1453,6 +1514,7 @@
       "  # izoh   sudo … (sim)   tcpdump / tshark (mock capture, ~1s)\n" +
       "Sim: analyze-packet  ids-status  start-ids  ping [-flood]\n" +
       "Suricata (IDS): suricata-install · suricata-home-net … · suricata-alert-ip add … · suricata-start\n" +
+      "Apt sim: sudo apt update ; sudo apt install suricata -y\n" +
       "To‘liq stub ro‘yxat (~" +
       stubN +
       "+ nom): commands  yoki list-commands\n" +

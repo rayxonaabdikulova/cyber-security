@@ -407,6 +407,7 @@
           "eve.json": fd(
             '{"timestamp":"mock","event_type":"heartbeat","sensor":"suricata-cyberlab"}\n'
           ),
+          "fast.log": fd(""),
         }),
         syslog: fd(
           "Jan 02 10:01:01 cyberlab kernel: [    0.000000] Linux version 6.x\n" +
@@ -461,7 +462,15 @@
     var s = state.suricata;
     var yaml = getNode(["etc", "suricata", "suricata.yaml"]);
     var rules = getNode(["etc", "suricata", "rules", "local.rules"]);
-    if (!yaml || yaml.kind !== "file" || !rules || rules.kind !== "file") {
+    var fastLog = getNode(["var", "log", "suricata", "fast.log"]);
+    if (
+      !yaml ||
+      yaml.kind !== "file" ||
+      !rules ||
+      rules.kind !== "file" ||
+      !fastLog ||
+      fastLog.kind !== "file"
+    ) {
       return;
     }
     var y =
@@ -508,6 +517,32 @@
       rules.content =
         "# Qo‘lda qoidalar yo‘q. Masalan:\n# suricata-alert-ip add 203.0.113.77\n";
     }
+
+    if (!s.running) {
+      fastLog.content = "";
+      return;
+    }
+
+    var fl = [];
+    fl.push("05/05/2026-11:20:01 [**] [1:2200074:2] SURICATA HTTP request line invalid [**] [Priority: 2] {TCP} 203.0.113.10:53211 -> 192.168.1.5:80");
+    if (s.alertIps.length) {
+      var z;
+      for (z = 0; z < s.alertIps.length; z += 1) {
+        fl.push(
+          "05/05/2026-11:20:0" +
+            ((z % 9) + 2) +
+            " [**] [1:9100" +
+            z +
+            ":1] CYBERLAB tashqi IP kuzatuv: " +
+            s.alertIps[z] +
+            " [**] [Priority: 2] {IP} " +
+            s.alertIps[z] +
+            " -> " +
+            s.homeNet.split("/")[0]
+        );
+      }
+    }
+    fastLog.content = fl.join("\n") + "\n";
   }
 
   var commandHistory = [];
@@ -1189,6 +1224,55 @@
     ];
   }
 
+  function cmdSuricataCli(args) {
+    if (!state.suricata.installed) {
+      return [
+        {
+          cls: "warn",
+          text:
+            "suricata: package topilmadi (simulation). Avval: sudo apt install suricata -y",
+        },
+      ];
+    }
+    var argv = args || [];
+    var cfg = "/etc/suricata/suricata.yaml";
+    var iface = "eth0";
+    var i;
+    for (i = 0; i < argv.length; i += 1) {
+      if (argv[i] === "-c" && i + 1 < argv.length) {
+        cfg = argv[i + 1];
+      }
+      if (argv[i] === "-i" && i + 1 < argv.length) {
+        iface = argv[i + 1];
+      }
+    }
+    state.suricata.running = true;
+    state.suricata.pid = 4000 + Math.floor(Math.random() * 900);
+    syncSuricataFilesToVFS();
+    return [
+      {
+        cls: "ok",
+        text:
+          "i: suricata: This is Suricata version 7.x (simulation), running in SYSTEM mode",
+      },
+      {
+        cls: "dim",
+        text:
+          "i: configuration: " +
+          cfg +
+          " | interface: " +
+          iface +
+          " | pid: " +
+          state.suricata.pid,
+      },
+      {
+        cls: "dim",
+        text:
+          "i: output: /var/log/suricata/fast.log va /var/log/suricata/eve.json (mock)",
+      },
+    ];
+  }
+
   function cmdSuricataStop() {
     state.suricata.running = false;
     state.suricata.pid = 0;
@@ -1514,6 +1598,7 @@
       "  # izoh   sudo … (sim)   tcpdump / tshark (mock capture, ~1s)\n" +
       "Sim: analyze-packet  ids-status  start-ids  ping [-flood]\n" +
       "Suricata (IDS): suricata-install · suricata-home-net … · suricata-alert-ip add … · suricata-start\n" +
+      "CLI sim: suricata -c /etc/suricata/suricata.yaml -i eth0\n" +
       "Apt sim: sudo apt update ; sudo apt install suricata -y\n" +
       "To‘liq stub ro‘yxat (~" +
       stubN +
@@ -1573,6 +1658,7 @@
   register("suricata-install", cmdSuricataInstall);
   register("suricata-home-net", cmdSuricataHomeNet);
   register("suricata-alert-ip", cmdSuricataAlertIp);
+  register("suricata", cmdSuricataCli);
   register("suricata-start", cmdSuricataStart);
   register("suricata-stop", cmdSuricataStop);
   register("suricata-status", cmdSuricataStatus);

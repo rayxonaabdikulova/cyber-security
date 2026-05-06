@@ -865,6 +865,44 @@ body.spa-ready .main > [data-panel-group].is-panel-visible {
   color: var(--text);
 }
 
+.file-analyzer__hint-before-upload {
+  max-width: 720px;
+  margin: 0.75rem 0 1rem;
+  padding: 0.7rem 1rem;
+  border-left: 4px solid var(--accent-dim);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  background: rgba(0, 229, 160, 0.06);
+}
+
+.file-analyzer__hint-before-upload strong {
+  color: var(--text);
+}
+
+.file-analyzer__note--after-upload {
+  margin-top: 1.5rem;
+}
+
+.file-analyzer-section > .url-analyzer-section.file-analyzer__url-strip {
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(0, 229, 160, 0.22);
+}
+
+.file-analyzer__url-heading {
+  margin: 0 0 0.35rem;
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.content__lead--tight {
+  margin-top: 0.25rem;
+  margin-bottom: 0.9rem;
+}
+
 .file-drop {
   position: relative;
   max-width: 720px;

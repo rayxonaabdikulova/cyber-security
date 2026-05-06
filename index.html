@@ -303,6 +303,14 @@ tshark -i eth0 -c 20 -f "tcp port 80" -V</code></pre>
             <strong>FastAPI</strong> <code>/api/scan-file</code> SHA-256 hisoblaydi va mock chuqur
             ikkilik DPI skanerini ishga tushiradi.
           </p>
+          <p class="file-analyzer__note" role="note">
+            <strong>Eslatma — ayniqsa <code>.apk</code>:</strong> bu sahifaga fayl
+            <em>tanlash</em> uchun avval u kompyuteringizda (yoki boshqa qurilmada) saqlangan bo‘lishi
+            kerak. Shubhali APK ni <strong>telefonda ochmang va o‘rnatmang</strong>; uni avval
+            <strong>kompyuterga ko‘chirib</strong> qo‘ying (mumkin bo‘lsa alohida/virtual mashinada),
+            keyin shu kompyuterdan brauzer orqali shu yerdan tanlang. Sayt faylni faqat tekshirish uchun
+            oladi; zararli bo‘lsa ham, asosiy telefoningizga tegmasdan yuborgan bo‘lasiz.
+          </p>
           <div
             class="file-drop"
             id="file-drop"
@@ -387,6 +395,64 @@ tshark -i eth0 -c 20 -f "tcp port 80" -V</code></pre>
               </ol>
             </div>
           </details>
+        </section>
+
+        <section
+          class="url-analyzer-section inspector-section"
+          id="url-analyzer-section"
+          aria-labelledby="url-analyzer-heading"
+        >
+          <h2 id="url-analyzer-heading" class="content__h2">Havola xavfsizligi</h2>
+          <p class="content__lead">
+            Sayt yoki fayl havolasini kiriting. Server <code>POST /api/scan-url</code> orqali
+            heuristic tahlil qiladi (HTTPS, domen shakli, qisqartirilgan linklar, shubhali
+            yo‘llar) va <strong>xavfsiz</strong>, <strong>ehtiyot</strong> yoki
+            <strong>xavfli</strong> bahosini beradi.
+          </p>
+          <div class="url-scan-panel" id="url-scan-panel">
+            <form class="url-scan-panel__form" id="url-analyzer-form" novalidate>
+              <div class="url-scan-panel__hero">
+                <span class="url-scan-panel__icon" aria-hidden="true">🔗</span>
+                <div class="url-scan-panel__intro">
+                  <p class="url-scan-panel__title">Linkni tekshirish</p>
+                  <p class="url-scan-panel__subtitle">
+                    <code>http://</code> / <code>https://</code> ixtiyoriy — kod avtomatik
+                    normalizatsiya qiladi.
+                  </p>
+                </div>
+              </div>
+              <div class="url-scan-panel__controls">
+                <label class="url-scan-panel__field" for="url-analyzer-input">
+                  <span class="inspector__label">Havola (URL)</span>
+                  <input
+                    type="text"
+                    inputmode="url"
+                    class="inspector__input url-scan-panel__input"
+                    id="url-analyzer-input"
+                    name="url"
+                    placeholder="https://example.com yoki telegram t.me/…"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                </label>
+                <button type="submit" class="url-scan-panel__submit" id="url-analyzer-submit">
+                  Tekshirish
+                </button>
+              </div>
+              <p class="url-scan-panel__disclaimer" role="note">
+                Bu mashg‘ulot uchun simulyatsiya: haqiqiy phishing yoki zarar aniqlashi uchun VirusTotal va
+                rasmiy manbalardan qo‘shimcha tasdiqlang.
+              </p>
+            </form>
+          </div>
+          <p class="url-scan-panel__meta" id="url-analyzer-meta" aria-live="polite"></p>
+          <div
+            class="inspector-result url-analyzer-result"
+            id="url-analyzer-result"
+            role="status"
+            aria-live="polite"
+            hidden
+          ></div>
         </section>
       </article>
 

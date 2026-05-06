@@ -1,6 +1,81 @@
 (function () {
   "use strict";
 
+  /* file:// sahifadan localhost ga fetch ko‘pchilik brauzerlarda bloklanadi — foydalanuvchini yo‘naltirish */
+  function showFileProtocolBanner() {
+    if (typeof window === "undefined" || window.location.protocol !== "file:") {
+      return;
+    }
+    try {
+      if (window.sessionStorage.getItem("cyberlab-hide-file-banner") === "1") {
+        return;
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    document.body.classList.add("cyberlab--file-protocol");
+
+    var bar = document.createElement("div");
+    bar.className = "cyberlab-file-protocol-warning";
+    bar.setAttribute("role", "alert");
+
+    var textWrap = document.createElement("div");
+    textWrap.className = "cyberlab-file-protocol-warning__text";
+
+    var strong = document.createElement("strong");
+    strong.textContent =
+      "Diskdan ochilgan (file://) — havola va fayl tekshirish ishlamaydi.";
+    textWrap.appendChild(strong);
+
+    var p = document.createElement("p");
+    p.style.margin = "0";
+    p.appendChild(document.createTextNode("Terminalda: "));
+    var c1 = document.createElement("code");
+    c1.textContent = "cd api";
+    p.appendChild(c1);
+    p.appendChild(document.createTextNode(" → "));
+    var c2 = document.createElement("code");
+    c2.textContent =
+      "pip install -r requirements.txt → uvicorn main:app --reload --host 127.0.0.1 --port 8000";
+    p.appendChild(c2);
+    p.appendChild(document.createTextNode(" — keyin brauzerda faqat "));
+    var c3 = document.createElement("code");
+    c3.textContent = "http://127.0.0.1:8000";
+    p.appendChild(c3);
+    p.appendChild(document.createTextNode(" oching (index.html diskdan emas)."));
+    textWrap.appendChild(p);
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "cyberlab-file-protocol-warning__dismiss";
+    btn.textContent = "Yopish";
+    btn.setAttribute(
+      "aria-label",
+      "Ogohlantirishni yashirish (faqat sahifa yangilanganida chiqadi)"
+    );
+    btn.addEventListener("click", function () {
+      try {
+        window.sessionStorage.setItem("cyberlab-hide-file-banner", "1");
+      } catch (e2) {
+        /* ignore */
+      }
+      bar.remove();
+      document.body.classList.remove("cyberlab--file-protocol");
+    });
+
+    bar.appendChild(textWrap);
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+  }
+
+  if (typeof document !== "undefined") {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", showFileProtocolBanner);
+    } else {
+      showFileProtocolBanner();
+    }
+  }
+
   if (
     typeof window !== "undefined" &&
     window.NodeList &&
@@ -2446,5 +2521,329 @@
       e.preventDefault();
       fileInput.click();
     }
+  });
+})();
+
+(function () {
+  "use strict";
+
+  function resolveApiBase() {
+    if (typeof window === "undefined") {
+      return "http://127.0.0.1:8000";
+    }
+    var loc = window.location;
+    if (loc.protocol === "file:") {
+      return "http://127.0.0.1:8000";
+    }
+    var host = (loc.hostname || "").toLowerCase();
+    var effectivePort =
+      loc.port ||
+      (loc.protocol === "https:" ? "443" : loc.protocol === "http:" ? "80" : "");
+    var loopback = host === "127.0.0.1" || host === "localhost";
+    if (loopback && effectivePort !== "8000") {
+      return "http://127.0.0.1:8000";
+    }
+    return loc.origin.replace(/\/$/, "");
+  }
+
+  var form = document.getElementById("url-analyzer-form");
+  var input = document.getElementById("url-analyzer-input");
+  var resultEl = document.getElementById("url-analyzer-result");
+  var panel = document.getElementById("url-scan-panel");
+  var submitBtn = document.getElementById("url-analyzer-submit");
+  var metaEl = document.getElementById("url-analyzer-meta");
+
+  if (!form || !input || !resultEl) {
+    return;
+  }
+
+  function setMeta(text) {
+    if (metaEl) {
+      metaEl.textContent = text || "";
+    }
+  }
+
+  function setBusy(busy) {
+    if (panel) {
+      panel.classList.toggle("url-scan-panel--busy", busy);
+    }
+    if (submitBtn) {
+      submitBtn.disabled = !!busy;
+    }
+  }
+
+  function showErrorCard(title, detail) {
+    resultEl.hidden = false;
+    resultEl.textContent = "";
+    var card = document.createElement("div");
+    card.className = "inspector-card inspector-card--warn";
+    var p1 = document.createElement("p");
+    var s1 = document.createElement("strong");
+    s1.textContent = title;
+    p1.appendChild(s1);
+    card.appendChild(p1);
+    if (detail) {
+      var p2 = document.createElement("p");
+      p2.style.marginTop = "0.5rem";
+      p2.style.fontSize = "0.9rem";
+      p2.textContent = detail;
+      card.appendChild(p2);
+    }
+    resultEl.appendChild(card);
+    resultEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  function showUrlLoader() {
+    resultEl.hidden = false;
+    resultEl.textContent = "";
+    var wrap = document.createElement("div");
+    wrap.className = "upload-scan-loader";
+    wrap.setAttribute("role", "status");
+    var rings = document.createElement("div");
+    rings.className = "upload-scan-loader__rings";
+    for (var r = 0; r < 3; r += 1) {
+      var dot = document.createElement("span");
+      dot.className = "upload-scan-loader__ring";
+      dot.setAttribute("aria-hidden", "true");
+      rings.appendChild(dot);
+    }
+    wrap.appendChild(rings);
+    var t = document.createElement("p");
+    t.className = "upload-scan-loader__title";
+    t.textContent = "Havola tahlil qilinmoqda…";
+    wrap.appendChild(t);
+    var sub = document.createElement("p");
+    sub.className = "upload-scan-loader__sub";
+    sub.textContent = "Heuristic URL skaneri — POST /api/scan-url";
+    wrap.appendChild(sub);
+    resultEl.appendChild(wrap);
+    resultEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  function addDlRow(grid, label, valueEl) {
+    var dt = document.createElement("dt");
+    dt.textContent = label;
+    var dd = document.createElement("dd");
+    dd.appendChild(valueEl);
+    grid.appendChild(dt);
+    grid.appendChild(dd);
+  }
+
+  function verdictVariant(statusUpper) {
+    if (statusUpper === "MALICIOUS") {
+      return { wrap: "scan-report--threat", meter: "url-risk-meter__fill--threat", badgeEn: "Malicious" };
+    }
+    if (statusUpper === "SUSPICIOUS") {
+      return {
+        wrap: "scan-report--suspicious",
+        meter: "url-risk-meter__fill--suspicious",
+        badgeEn: "Suspicious",
+      };
+    }
+    return { wrap: "scan-report--safe", meter: "url-risk-meter__fill--safe", badgeEn: "Safe" };
+  }
+
+  function renderUrlScanReport(data) {
+    resultEl.hidden = false;
+    resultEl.textContent = "";
+
+    var statusUpper = String(data.status || "").toUpperCase();
+    var v = verdictVariant(statusUpper);
+    var risk = typeof data.risk_score === "number" ? data.risk_score : 0;
+
+    var root = document.createElement("div");
+    root.className = "scan-report " + v.wrap;
+
+    var head = document.createElement("div");
+    head.className = "scan-report__head";
+
+    var h = document.createElement("h3");
+    h.className = "scan-report__title";
+    h.textContent = "Havola xavfsizlik hisoboti";
+
+    var badgeRow = document.createElement("span");
+    badgeRow.className = "scan-report__badge";
+    var verdictUz = data.verdict || data.status || "—";
+    badgeRow.textContent = verdictUz + " · " + v.badgeEn;
+
+    head.appendChild(h);
+    head.appendChild(badgeRow);
+    root.appendChild(head);
+
+    var body = document.createElement("div");
+    body.className = "scan-report__body";
+
+    var grid = document.createElement("dl");
+    grid.className = "scan-report__grid";
+
+    var rawSpan = document.createElement("span");
+    rawSpan.textContent = data.url || "—";
+    addDlRow(grid, "Kiritilgan", rawSpan);
+
+    if (data.final_url) {
+      var fin = document.createElement("code");
+      fin.className = "scan-report__hash";
+      fin.textContent = data.final_url;
+      addDlRow(grid, "Normalizatsiya", fin);
+    }
+
+    var riskWrap = document.createElement("div");
+    riskWrap.className = "url-risk-meter";
+    riskWrap.setAttribute(
+      "aria-label",
+      "Xavf balli " + risk + " foizdan yuz"
+    );
+    var track = document.createElement("div");
+    track.className = "url-risk-meter__track";
+    var fill = document.createElement("div");
+    fill.className = "url-risk-meter__fill " + v.meter;
+    fill.style.width = Math.min(100, Math.max(0, risk)) + "%";
+    track.appendChild(fill);
+    var val = document.createElement("span");
+    val.className = "url-risk-meter__value";
+    val.textContent = risk + "/100";
+    riskWrap.appendChild(track);
+    riskWrap.appendChild(val);
+    var riskDd = document.createElement("dd");
+    riskDd.appendChild(riskWrap);
+    var riskDt = document.createElement("dt");
+    riskDt.textContent = "Xavf balli";
+    grid.appendChild(riskDt);
+    grid.appendChild(riskDd);
+
+    body.appendChild(grid);
+
+    var secReasons = document.createElement("p");
+    secReasons.className = "scan-report__section-title";
+    secReasons.textContent = "Sabablar";
+
+    var ulR = document.createElement("ul");
+    ulR.className = "scan-report__list";
+    var reasons = data.reasons || [];
+    if (!reasons.length) {
+      var liEmpty = document.createElement("li");
+      liEmpty.textContent = "(sabab yozilmagan)";
+      ulR.appendChild(liEmpty);
+    } else {
+      for (var i = 0; i < reasons.length; i += 1) {
+        var li1 = document.createElement("li");
+        li1.textContent = reasons[i];
+        ulR.appendChild(li1);
+      }
+    }
+    body.appendChild(secReasons);
+    body.appendChild(ulR);
+
+    var secRec = document.createElement("p");
+    secRec.className = "scan-report__section-title";
+    secRec.textContent = "Tavsiyalar";
+
+    var ulN = document.createElement("ul");
+    ulN.className = "scan-report__list";
+    var recs = data.recommendations || [];
+    if (!recs.length) {
+      var liNe = document.createElement("li");
+      liNe.textContent = "(tavsiya yo‘q)";
+      ulN.appendChild(liNe);
+    } else {
+      for (var j = 0; j < recs.length; j += 1) {
+        var li2 = document.createElement("li");
+        li2.textContent = recs[j];
+        ulN.appendChild(li2);
+      }
+    }
+    body.appendChild(secRec);
+    body.appendChild(ulN);
+
+    root.appendChild(body);
+    resultEl.appendChild(root);
+    resultEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var rawUrl = input.value.trim();
+    if (!rawUrl) {
+      showErrorCard("Havola bo‘sh", "Iltimos, tekshiriladigan URL ni kiriting.");
+      setMeta("");
+      return;
+    }
+
+    setBusy(true);
+    setMeta(rawUrl + " — tahlil qilinmoqda…");
+    showUrlLoader();
+
+    fetch(resolveApiBase() + "/api/scan-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: rawUrl }),
+      mode: "cors",
+      credentials: "omit",
+    })
+      .then(function (res) {
+        if (!res.ok) {
+          return res.text().then(function (txt) {
+            var err = new Error("HTTP " + res.status);
+            err.body = txt;
+            throw err;
+          });
+        }
+        return res.json();
+      })
+      .then(function (data) {
+        setBusy(false);
+        renderUrlScanReport(data);
+        setMeta(
+          (data.verdict || data.status || "OK") +
+            " · risk " +
+            (typeof data.risk_score === "number" ? data.risk_score : "?") +
+            "/100"
+        );
+      })
+      .catch(function (err) {
+        setBusy(false);
+        var detail = "";
+        try {
+          if (err && err.body) {
+            var parsed = JSON.parse(err.body);
+            if (parsed && parsed.detail) {
+              detail = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
+            } else {
+              detail = String(err.body).slice(0, 280);
+            }
+          }
+        } catch (parseEx) {
+          if (err && err.body) {
+            detail = String(err.body).slice(0, 280);
+          }
+        }
+        var msgLower = "";
+        if (err && err.message) {
+          msgLower = String(err.message).toLowerCase();
+          if (!detail) {
+            detail = err.message;
+          }
+        }
+        if (/failed to fetch|networkerror|load failed|internet connection/.test(msgLower)) {
+          var loc = typeof window !== "undefined" ? window.location : null;
+          var hints =
+            "Brauzer serverga ulanmadi («Failed to fetch»). Tekshirishlar: ";
+          hints +=
+            "(1) Sahifani diskdan «file://» dan emas, bitta joydan oching — masalan lokalda http://127.0.0.1:8000 yoki deployingizning to‘liq HTTPS manzili; ";
+          hints +=
+            "(2) Backend ishlayaptimi: ochiq brauzerda /health sahifasi; ";
+          hints +=
+            "(3) Bulutda (Render) ALLOWED_COUNTRIES muhiti noto‘g‘ri blok qilmasligi kerak — bo‘sh qiling yoki geobloqu o‘ching; ";
+          hints +=
+            "(4) VPN yoki bloklovchi plaginlar POST so‘rovini to‘satishi mumkin. ";
+          hints += loc ? "[Joriy manzil] " + String(loc.href).slice(0, 140) + " …" : "";
+          detail = hints;
+        }
+        if (!detail) {
+          detail = "Server javob bermadi.";
+        }
+        showErrorCard("Tekshirish muvaffaqiyatsiz", detail);
+        setMeta("Xato — qayta urinib ko‘ring.");
+      });
   });
 })();

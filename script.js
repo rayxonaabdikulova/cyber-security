@@ -193,11 +193,10 @@
     if (raw === "ids-ips-taqqoslash") {
       return "ips";
     }
+    if (raw === "havola" || raw === "havola-xavfsizligi") {
+      return "dpi";
+    }
     return VALID_SECTION[raw] ? raw : "kirish";
-  }
-
-  function getSectionFromHash() {
-    return normalizeSection(window.location.hash.replace(/^#/, ""));
   }
 
   function isKnownHashFragment(raw) {
@@ -207,27 +206,47 @@
     if (raw === "ids-ips-taqqoslash") {
       return true;
     }
+    if (raw === "havola" || raw === "havola-xavfsizligi") {
+      return true;
+    }
     return !!VALID_SECTION[raw];
   }
 
-  function applyRoute(section) {
-    section = normalizeSection(section);
+  function applyRoute() {
+    var raw = window.location.hash.replace(/^#/, "");
+    if (!raw) {
+      raw = "kirish";
+    }
+    var canonical = normalizeSection(raw);
     links.forEach(function (a) {
       var id = a.getAttribute("data-section");
-      a.classList.toggle("is-active", id === section);
+      var isActive =
+        raw === "havola" || raw === "havola-xavfsizligi"
+          ? id === "havola-xavfsizligi"
+          : id === canonical;
+      a.classList.toggle("is-active", isActive);
     });
     panels.forEach(function (el) {
       var g = el.getAttribute("data-panel-group");
-      el.classList.toggle("is-panel-visible", g === section);
+      el.classList.toggle("is-panel-visible", g === canonical);
     });
     if (main) {
       main.scrollTop = 0;
     }
     window.scrollTo(0, 0);
+
+    if (raw === "havola" || raw === "havola-xavfsizligi") {
+      window.setTimeout(function () {
+        var el = document.getElementById("havola-xavfsizligi");
+        if (el) {
+          el.scrollIntoView({ block: "start", behavior: "smooth" });
+        }
+      }, 60);
+    }
   }
 
   function onHashRoute() {
-    applyRoute(getSectionFromHash());
+    applyRoute();
   }
 
   function initSpaNav() {

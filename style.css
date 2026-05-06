@@ -1238,6 +1238,7 @@ body.spa-ready .main > [data-panel-group].is-panel-visible {
 /* Havola skaneri — bilan fayl skaneri vizual uygunligi */
 .url-analyzer-section {
   margin-top: 2.25rem;
+  scroll-margin-top: calc(var(--topnav-height) + 12px);
 }
 
 .url-scan-panel {

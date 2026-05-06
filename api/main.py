@@ -13,10 +13,8 @@ Internet (domen / VPS / bulut) — boshqa qurilmalar ulanishi uchun:
 
 Ixtiyoriy muhit: ALLOWED_HOSTS=cyberlab.uz,www.cyberlab.uz — faqat shu Host sarlavhalari.
 
-Ixtiyoriy geo: ALLOWED_COUNTRIES=UZ — bulutda ishlaydiganlarida (masalan Render) odatda
-cf-ipcountry kabi header bo‘lmaydi, shuning uchun default bo‘yicha geo-bloklash o‘chiq.
-Hudud blokini yoqmoqchi bo‘lsangiz: CDN/proxy dan mamlakat kodini uzating yoki ALLOWED_COUNTRIES
-qiymatini o‘zgartiring/bo‘sh qoldiring.
+Hudud bloklash (ixtiyoriy): ALLOWED_COUNTRIES=UZ — bo‘sh yoki * bo‘lsa yopiq blok yo‘q (Render kabi
+hostingda country header bo‘lmasa shu rejim kerak).
 
 Brauzerda oching (diskdan emas): http://127.0.0.1:8000
 Shunda HTML/CSS/JS va POST /api/scan-file bir xil manzildan — «Failed to fetch» yo‘qoladi.
@@ -113,7 +111,6 @@ app = FastAPI(title="CyberLab DPI Scanner", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_origin_regex=r"^null$",  # file:// (Origin: null) — ba'zi rejimlar uchun
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -129,13 +126,17 @@ if _allowed_hosts:
         ],
     )
 
-# Render/VPS ko‘pchilikda geo header yo‘q — default blok yo‘q. Kerak bo‘lsa: ALLOWED_COUNTRIES=UZ
+# Bo‘sh yoki "*" = yopiq blok yo‘q (Render/VPS uchun default). Hudud blokini yoqish:
+# ALLOWED_COUNTRIES=UZ  va reverse proxy dan mamlakat headeri kerak (masalan cf-ipcountry).
 _allowed_countries_raw = os.environ.get("ALLOWED_COUNTRIES", "").strip()
-ALLOWED_COUNTRIES = {
-    part.strip().upper()
-    for part in _allowed_countries_raw.split(",")
-    if part.strip()
-}
+if not _allowed_countries_raw or _allowed_countries_raw == "*":
+    ALLOWED_COUNTRIES: frozenset[str] = frozenset()
+else:
+    ALLOWED_COUNTRIES = frozenset(
+        c.strip().upper()
+        for c in _allowed_countries_raw.split(",")
+        if c.strip()
+    )
 COUNTRY_HEADERS = ("cf-ipcountry", "x-country-code", "x-vercel-ip-country")
 LOCALHOST_IPS = {"127.0.0.1", "::1", "localhost"}
 

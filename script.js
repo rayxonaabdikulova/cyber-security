@@ -1,81 +1,6 @@
 (function () {
   "use strict";
 
-  /* file:// sahifadan localhost ga fetch ko‘pchilik brauzerlarda bloklanadi — foydalanuvchini yo‘naltirish */
-  function showFileProtocolBanner() {
-    if (typeof window === "undefined" || window.location.protocol !== "file:") {
-      return;
-    }
-    try {
-      if (window.sessionStorage.getItem("cyberlab-hide-file-banner") === "1") {
-        return;
-      }
-    } catch (e) {
-      /* ignore */
-    }
-    document.body.classList.add("cyberlab--file-protocol");
-
-    var bar = document.createElement("div");
-    bar.className = "cyberlab-file-protocol-warning";
-    bar.setAttribute("role", "alert");
-
-    var textWrap = document.createElement("div");
-    textWrap.className = "cyberlab-file-protocol-warning__text";
-
-    var strong = document.createElement("strong");
-    strong.textContent =
-      "Diskdan ochilgan (file://) — havola va fayl tekshirish ishlamaydi.";
-    textWrap.appendChild(strong);
-
-    var p = document.createElement("p");
-    p.style.margin = "0";
-    p.appendChild(document.createTextNode("Terminalda: "));
-    var c1 = document.createElement("code");
-    c1.textContent = "cd api";
-    p.appendChild(c1);
-    p.appendChild(document.createTextNode(" → "));
-    var c2 = document.createElement("code");
-    c2.textContent =
-      "pip install -r requirements.txt → uvicorn main:app --reload --host 127.0.0.1 --port 8000";
-    p.appendChild(c2);
-    p.appendChild(document.createTextNode(" — keyin brauzerda faqat "));
-    var c3 = document.createElement("code");
-    c3.textContent = "http://127.0.0.1:8000";
-    p.appendChild(c3);
-    p.appendChild(document.createTextNode(" oching (index.html diskdan emas)."));
-    textWrap.appendChild(p);
-
-    var btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "cyberlab-file-protocol-warning__dismiss";
-    btn.textContent = "Yopish";
-    btn.setAttribute(
-      "aria-label",
-      "Ogohlantirishni yashirish (faqat sahifa yangilanganida chiqadi)"
-    );
-    btn.addEventListener("click", function () {
-      try {
-        window.sessionStorage.setItem("cyberlab-hide-file-banner", "1");
-      } catch (e2) {
-        /* ignore */
-      }
-      bar.remove();
-      document.body.classList.remove("cyberlab--file-protocol");
-    });
-
-    bar.appendChild(textWrap);
-    bar.appendChild(btn);
-    document.body.appendChild(bar);
-  }
-
-  if (typeof document !== "undefined") {
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", showFileProtocolBanner);
-    } else {
-      showFileProtocolBanner();
-    }
-  }
-
   if (
     typeof window !== "undefined" &&
     window.NodeList &&
@@ -193,10 +118,11 @@
     if (raw === "ids-ips-taqqoslash") {
       return "ips";
     }
-    if (raw === "havola" || raw === "havola-xavfsizligi") {
-      return "dpi";
-    }
     return VALID_SECTION[raw] ? raw : "kirish";
+  }
+
+  function getSectionFromHash() {
+    return normalizeSection(window.location.hash.replace(/^#/, ""));
   }
 
   function isKnownHashFragment(raw) {
@@ -206,47 +132,27 @@
     if (raw === "ids-ips-taqqoslash") {
       return true;
     }
-    if (raw === "havola" || raw === "havola-xavfsizligi") {
-      return true;
-    }
     return !!VALID_SECTION[raw];
   }
 
-  function applyRoute() {
-    var raw = window.location.hash.replace(/^#/, "");
-    if (!raw) {
-      raw = "kirish";
-    }
-    var canonical = normalizeSection(raw);
+  function applyRoute(section) {
+    section = normalizeSection(section);
     links.forEach(function (a) {
       var id = a.getAttribute("data-section");
-      var isActive =
-        raw === "havola" || raw === "havola-xavfsizligi"
-          ? id === "havola-xavfsizligi"
-          : id === canonical;
-      a.classList.toggle("is-active", isActive);
+      a.classList.toggle("is-active", id === section);
     });
     panels.forEach(function (el) {
       var g = el.getAttribute("data-panel-group");
-      el.classList.toggle("is-panel-visible", g === canonical);
+      el.classList.toggle("is-panel-visible", g === section);
     });
     if (main) {
       main.scrollTop = 0;
     }
     window.scrollTo(0, 0);
-
-    if (raw === "havola" || raw === "havola-xavfsizligi") {
-      window.setTimeout(function () {
-        var el = document.getElementById("havola-xavfsizligi");
-        if (el) {
-          el.scrollIntoView({ block: "start", behavior: "smooth" });
-        }
-      }, 60);
-    }
   }
 
   function onHashRoute() {
-    applyRoute();
+    applyRoute(getSectionFromHash());
   }
 
   function initSpaNav() {
@@ -2546,9 +2452,27 @@
 (function () {
   "use strict";
 
-  function resolveApiBase() {
+  function resolveCyberlabApiOrigin() {
     if (typeof window === "undefined") {
       return "http://127.0.0.1:8000";
+    }
+    if (
+      typeof window.__CYBERLAB_API_BASE__ === "string" &&
+      window.__CYBERLAB_API_BASE__.trim()
+    ) {
+      return String(window.__CYBERLAB_API_BASE__).replace(/\/$/, "");
+    }
+    if (
+      typeof window.__CYBERLAB_SCAN_API__ === "string" &&
+      window.__CYBERLAB_SCAN_API__.trim()
+    ) {
+      var scanApiStr = String(window.__CYBERLAB_SCAN_API__).replace(/\/$/, "");
+      var low = scanApiStr.toLowerCase();
+      var cut = low.indexOf("/api/scan-file");
+      if (cut !== -1) {
+        return scanApiStr.slice(0, cut).replace(/\/$/, "") || scanApiStr;
+      }
+      return scanApiStr;
     }
     var loc = window.location;
     if (loc.protocol === "file:") {
@@ -2563,6 +2487,177 @@
       return "http://127.0.0.1:8000";
     }
     return loc.origin.replace(/\/$/, "");
+  }
+
+  function resolveScanUrlEndpoint() {
+    if (
+      typeof window.__CYBERLAB_SCAN_URL_API__ === "string" &&
+      window.__CYBERLAB_SCAN_URL_API__.trim()
+    ) {
+      return String(window.__CYBERLAB_SCAN_URL_API__).replace(/\/$/, "");
+    }
+    return resolveCyberlabApiOrigin() + "/api/scan-url";
+  }
+
+  var SUSPICIOUS_HOST_KEYWORDS = [
+    "login",
+    "verify",
+    "secure",
+    "account",
+    "bank",
+    "wallet",
+  ];
+  var SUSPICIOUS_PATH_KEYWORDS = [
+    "signin",
+    "verify",
+    "reset-password",
+    "update-account",
+    "download",
+    "invoice",
+  ];
+  var URL_SHORTENERS = { "bit.ly": 1, "tinyurl.com": 1, "t.co": 1, "rb.gy": 1 };
+  var SUSPICIOUS_TLDS = {
+    ".zip": 1,
+    ".top": 1,
+    ".click": 1,
+    ".country": 1,
+    ".gq": 1,
+  };
+
+  function analyzeUrlOffline(rawInput) {
+    var rawStrip = String(rawInput || "").trim();
+    var urlTry = rawStrip;
+    if (!/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//.test(urlTry)) {
+      urlTry = "https://" + urlTry;
+    }
+    var u;
+    try {
+      u = new URL(urlTry);
+    } catch (e1) {
+      return {
+        url: rawStrip,
+        final_url: "",
+        status: "SUSPICIOUS",
+        verdict: "EHTIYOT",
+        risk_score: 40,
+        reasons: ["URL formati notekis yoki ochilmadi."],
+        recommendations: [
+          "Ma'noli HTTPS manzil kiriting.",
+          "Yoki ulanish uchun server ishga tushiring (FastAPI uvicorn).",
+        ],
+      };
+    }
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return {
+        url: rawStrip,
+        final_url: u.href,
+        status: "MALICIOUS",
+        verdict: "XAVFLI",
+        risk_score: 85,
+        reasons: ["http/https boshqa protokollar qabul qilinmaydi."],
+        recommendations: [],
+      };
+    }
+    var host = (u.hostname || "").toLowerCase();
+    var pathL = (u.pathname || "").toLowerCase();
+    var risk = 0;
+    var reasons = [];
+    var recs = [];
+
+    if (u.protocol === "http:") {
+      risk += 25;
+      reasons.push("HTTPS yo‘q (trafik shifrlanmagan bo‘lishi mumkin).");
+      recs.push("HTTPS ishlatadigan rasmiy domenni tanlang.");
+    }
+    var authMatch = String(urlTry).match(/^https?:\/\/([^/?#]+)/i);
+    if (authMatch && authMatch[1].indexOf("@") !== -1) {
+      risk += 30;
+      reasons.push("URL ichida '@' bor (obfuscation/phishing belgisi).");
+    }
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      /\.local$/i.test(host)
+    ) {
+      risk += 10;
+      reasons.push("Lokal host manzili (internet sayti emas).");
+    } else if (/^\d+\.\d+\.\d+\.\d+$/.test(host) || /^\[[0-9a-f:]+\]$/i.test(host)) {
+      risk += 20;
+      reasons.push("Domen o‘rniga to‘g‘ridan-to‘g‘ri IP ishlatilgan.");
+    }
+    if (host.indexOf("xn--") === 0) {
+      risk += 15;
+      reasons.push("Punycode domen (vizual spoof ehtimoli bor).");
+    }
+    var hostParts = host.split(".");
+    if (hostParts.length >= 5) {
+      risk += 12;
+      reasons.push("Juda chuqur subdomain zanjiri kuzatildi.");
+    }
+    var tld = hostParts.length > 1 ? "." + hostParts[hostParts.length - 1] : "";
+    if (SUSPICIOUS_TLDS[tld]) {
+      risk += 15;
+      reasons.push("Shubhali TLD aniqlandi: " + tld + ".");
+    }
+    if (URL_SHORTENERS[host]) {
+      risk += 18;
+      reasons.push("Qisqartirilgan link xizmati (asl manzil yashirilgan bo‘lishi mumkin).");
+    }
+    var hw = SUSPICIOUS_HOST_KEYWORDS.filter(function (w) {
+      return host.indexOf(w) !== -1;
+    });
+    if (hw.length) {
+      risk += 10;
+      reasons.push("Hostda ijtimoiy muhandislikka xos so‘zlar bor: " + hw.join(", ") + ".");
+    }
+    var ph = SUSPICIOUS_PATH_KEYWORDS.filter(function (w) {
+      return pathL.indexOf(w) !== -1;
+    });
+    if (ph.length) {
+      risk += 10;
+      reasons.push("Path shubhali yo‘nalishlarni o‘z ichiga oladi: " + ph.join(", ") + ".");
+    }
+    var fullLower = u.href.toLowerCase();
+    if (/\.(exe|apk|msi|bat|cmd|scr|js|vbs)(?:$|[?#])/i.test(fullLower)) {
+      risk += 35;
+      reasons.push("URL bajariladigan yoki skript faylga yo‘naltiryapti.");
+      recs.push("Bunday faylni yuklab olmang, sandboxsiz ishga tushirmang.");
+    }
+    if (fullLower.length > 180) {
+      risk += 8;
+      reasons.push("URL juda uzun va chalg‘ituvchi bo‘lishi mumkin.");
+    }
+    risk = Math.min(risk, 100);
+    var status;
+    var verdict;
+    if (risk >= 65) {
+      status = "MALICIOUS";
+      verdict = "XAVFLI";
+    } else if (risk >= 35) {
+      status = "SUSPICIOUS";
+      verdict = "EHTIYOT";
+    } else {
+      status = "SAFE";
+      verdict = "XAVFSIZ";
+    }
+    if (!reasons.length) {
+      reasons.push("Jiddiy shubhali belgi topilmadi (heuristic tekshiruv).");
+    }
+    if (!recs.length) {
+      recs.push("Muhim akkaunt ma'lumotini kiritishdan oldin domenni qo‘lda tekshiring.");
+      recs.push("Noma'lum manbalardan fayl yuklab olmaslik tavsiya etiladi.");
+    }
+    return {
+      url: rawStrip,
+      final_url: u.href,
+      status: status,
+      risk_score: risk,
+      verdict: verdict,
+      reasons: reasons,
+      recommendations: recs,
+      _offline: true,
+    };
   }
 
   var form = document.getElementById("url-analyzer-form");
@@ -2792,7 +2887,7 @@
     setMeta(rawUrl + " — tahlil qilinmoqda…");
     showUrlLoader();
 
-    fetch(resolveApiBase() + "/api/scan-url", {
+    fetch(resolveScanUrlEndpoint(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: rawUrl }),
@@ -2836,27 +2931,31 @@
             detail = String(err.body).slice(0, 280);
           }
         }
-        var msgLower = "";
-        if (err && err.message) {
-          msgLower = String(err.message).toLowerCase();
-          if (!detail) {
-            detail = err.message;
-          }
+        if (!detail && err && err.message) {
+          detail = err.message;
         }
-        if (/failed to fetch|networkerror|load failed|internet connection/.test(msgLower)) {
-          var loc = typeof window !== "undefined" ? window.location : null;
-          var hints =
-            "Brauzer serverga ulanmadi («Failed to fetch»). Tekshirishlar: ";
-          hints +=
-            "(1) Sahifani diskdan «file://» dan emas, bitta joydan oching — masalan lokalda http://127.0.0.1:8000 yoki deployingizning to‘liq HTTPS manzili; ";
-          hints +=
-            "(2) Backend ishlayaptimi: ochiq brauzerda /health sahifasi; ";
-          hints +=
-            "(3) Bulutda (Render) ALLOWED_COUNTRIES muhiti noto‘g‘ri blok qilmasligi kerak — bo‘sh qiling yoki geobloqu o‘ching; ";
-          hints +=
-            "(4) VPN yoki bloklovchi plaginlar POST so‘rovini to‘satishi mumkin. ";
-          hints += loc ? "[Joriy manzil] " + String(loc.href).slice(0, 140) + " …" : "";
-          detail = hints;
+        /* fetch reject yoki javob tayyor emasda err.body boʻlmasadi; HTTP xatosi .then ichida bodysiz emas */
+        var networkNoResponse = !(err && err.body);
+        if (networkNoResponse) {
+          var fallback = analyzeUrlOffline(rawUrl);
+          fallback.reasons = [
+            "Serverga ulanib bo‘lmadi yoki javob yoʻq (brauzer: «Failed to fetch»). Bu natija brauzerda lokal hisoblangan.",
+          ].concat(fallback.reasons || []);
+          fallback.recommendations = (
+            fallback.recommendations || []
+          ).concat([
+            "Server bilan tekshirish uchun sahifani FastAPI beradigan asosiy manzildan oching: " +
+              "http://127.0.0.1:8000 (lokal) yoki Render Web Service URL; file:// yoki API siz " +
+              "statik xostda faqat lokal natija ishlaydi.",
+          ]);
+          renderUrlScanReport(fallback);
+          setMeta(
+            (fallback.verdict || fallback.status || "OK") +
+              " · " +
+              (typeof fallback.risk_score === "number" ? fallback.risk_score : "?") +
+              "/100 (lokal/offline)"
+          );
+          return;
         }
         if (!detail) {
           detail = "Server javob bermadi.";

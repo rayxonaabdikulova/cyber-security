@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import logging
 import os
 import re
 import socket
@@ -42,6 +43,9 @@ from starlette.responses import JSONResponse
 from starlette.staticfiles import StaticFiles
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("cyberlab")
 
 
 def _ext(name: str) -> str:
@@ -567,15 +571,17 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
 
     try:
         await tg_send_message(chat_id, "Qabul qilindi. APK tekshirilmoqda...")
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        # Telegram faylni yuklab olish sekin ketishi mumkin, shuning uchun
+        # timeout ni uzoqroq qilyapmiz (lekin baribir cheklangan).
+        timeout = httpx.Timeout(connect=20.0, read=160.0, write=20.0, pool=20.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             file_meta = await client.get(
                 f"{TELEGRAM_API_BASE}/getFile",
                 params={"file_id": file_id},
             )
             file_meta.raise_for_status()
-            file_path = (
-                file_meta.json().get("result", {}).get("file_path", "")
-            )
+
+            file_path = file_meta.json().get("result", {}).get("file_path", "")
             if not file_path:
                 await tg_send_message(chat_id, "Fayl manzili olinmadi. Qayta urinib ko‘ring.")
                 return {"ok": True}
@@ -585,7 +591,8 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
             raw = file_resp.content
 
         result = build_scan_file_response(file_name, raw)
-        is_safe = str(result.status).lower() == "safe"
+        status_lower = str(result.status).lower()
+        is_safe = ("safe" in status_lower) or ("toza" in status_lower)
         verdict_emoji = "✅" if is_safe else "⚠️"
         advice = (
             "Tavsiya: fayl normal ko‘rinadi, baribir rasmiy manbadan yuklang."
@@ -606,7 +613,21 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
         )
     except HTTPException as exc:
         await tg_send_message(chat_id, f"Xatolik: {exc.detail}")
-    except Exception:
+    except httpx.TimeoutException as exc:
+        logger.exception("Telegram webhook timeout")
+        await tg_send_message(
+            chat_id,
+            "Texnik xatolik: Telegram faylni yuklab olish vaqti tugadi. Iltimos, birozdan keyin qayta urinib ko‘ring.",
+        )
+    except httpx.HTTPError as exc:
+        logger.exception("Telegram HTTP error")
+        await tg_send_message(
+            chat_id,
+            "Texnik xatolik: Telegram faylni yuklab bo‘lmadi. Sabab: "
+            f"{type(exc).__name__}. Iltimos, keyinroq qayta urinib ko‘ring.",
+        )
+    except Exception as exc:
+        logger.exception("Telegram webhook unexpected error")
         await tg_send_message(
             chat_id,
             "Texnik xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko‘ring.",

@@ -31,7 +31,7 @@
         <a href="#kirish">Bosh sahifa</a>
         <a href="#dpi">Hujjatlar</a>
         <a href="#dpi">Misol</a>
-        <a href="#test">Resurslar</a>
+        <a href="#ips">Resurslar</a>
       </nav>
     </div>
   </header>
@@ -47,7 +47,6 @@
         <a href="#dpi" class="sidebar__link" data-section="dpi">DPI (Chuqur Tahlil)</a>
         <a href="#ids" class="sidebar__link" data-section="ids">IDS (Aniqlash)</a>
         <a href="#ips" class="sidebar__link" data-section="ips">IPS (Oldini Olish)</a>
-        <a href="#test" class="sidebar__link" data-section="test">Test (Quiz)</a>
       </nav>
     </aside>
 
@@ -191,16 +190,15 @@ tshark -i eth0 -c 20 -f "tcp port 80" -V</code></pre>
         <section class="term-section" aria-labelledby="term-heading">
           <h2 id="term-heading" class="content__h2">Interaktiv terminal (simulyator)</h2>
           <p class="content__lead">
-            Qora terminal, yashil prompt: <code>ls</code>, <code>cd</code>, <code>sudo …</code>,
-            <code># izoh</code>, <code>tcpdump</code> / <code>tshark</code> (mock capture, ~1s),
-            <code>mkdir</code>, <code>touch</code>, <code>history</code> (↑/↓).
-            Yana <strong>100+</strong> ta stub UNIX buyrug‘i — to‘liq ro‘yxat: <code>commands</code>.
-            Suricata (sim): <code>suricata-install</code>,
-            <code>suricata-home-net 192.168.1.0/24</code>,
-            <code>suricata-alert-ip add 203.0.113.1</code>, <code>suricata-start</code>
-            · <code>cat /etc/suricata/suricata.yaml</code>.
-            VFS: <code>cat /var/log/syslog</code>.
+            Bu real server emas, o‘quv uchun yaratilgan xavfsiz terminal simulyatori.
+            Maqsad — IDS/IPS va tarmoq xavfsizligi buyruqlarini amalda ko‘rsatish.
           </p>
+          <ul>
+            <li><strong>Nima qiladi:</strong> buyruq qanday ishlashini ko‘rsatadi, test loglar va natija beradi.</li>
+            <li><strong>Nima yozasiz:</strong> <code>help</code>, <code>commands</code>, <code>ids-status</code>, <code>analyze-packet ...</code>.</li>
+            <li><strong>Nima bera oladi:</strong> xavfli trafik belgilarini aniqlash mantig‘ini tushuntiradi (simulyatsiya).</li>
+            <li><strong>Muhim:</strong> bu terminal real qurilmangizni skaner qilmaydi, o‘quv muhiti sifatida ishlaydi.</li>
+          </ul>
           <div
             class="term"
             id="packet-terminal"
@@ -238,9 +236,15 @@ tshark -i eth0 -c 20 -f "tcp port 80" -V</code></pre>
         <section class="inspector-section" aria-labelledby="inspector-heading">
           <h2 id="inspector-heading" class="content__h2">Packet Inspector (DPI simulyatori)</h2>
           <p class="content__lead">
-            Paket tafsilotlarini kiriting. DPI yuklamani skanerlaydi; manba IP qora
-            ro‘yxat bilan solishtiriladi (sinov: <code>192.168.1.99</code>).
+            Bu bo‘lim paket ma’lumotini oddiy usulda tekshiradi: payload ichidagi
+            shubhali matnlarni qidiradi va manba IP ni tekshiradi.
           </p>
+          <ul>
+            <li><strong>Source IP:</strong> paket yuborgan manzil (test uchun qo‘lda yoziladi), masalan <code>192.168.1.10</code>.</li>
+            <li><strong>Destination IP:</strong> paket borayotgan manzil, masalan <code>10.0.0.5</code>.</li>
+            <li><strong>Payload:</strong> paket ichidagi matn/so‘rov. Masalan <code>GET / HTTP/1.1</code>.</li>
+            <li><strong>Tez test:</strong> Source IP ni <code>192.168.1.99</code> qiling yoki payload ga <code>malware</code> so‘zini yozing.</li>
+          </ul>
           <form class="inspector" id="dpi-inspector-form" novalidate>
             <div class="inspector__row">
               <label class="inspector__field" for="inspector-src">
@@ -707,93 +711,6 @@ tshark -i eth0 -c 20 -f "tcp port 80" -V</code></pre>
         </div>
       </article>
 
-      <article class="content" id="test" data-panel-group="test">
-        <h1>Test (Quiz)</h1>
-        <p class="quiz__lead">
-          Uchta savol: DPI, IDS va IPS bo‘yicha bilimingizni tekshiring. Variantni
-          tanlang va <strong>Natijani ko‘rish</strong> tugmasini bosing.
-        </p>
-
-        <div class="quiz" id="security-quiz" aria-labelledby="quiz-heading">
-          <h2 id="quiz-heading" class="visually-hidden">Bilimni tekshirish</h2>
-
-          <fieldset class="quiz__block">
-            <legend class="quiz__question">
-              1. DPI (chuqur paket tekshiruvi) trafigi qaysi qismni, sarlavhadan tashqari,
-              tahlil qilish imkonini beradi?
-            </legend>
-            <label class="quiz__option">
-              <input type="radio" name="q1" value="a" />
-              <span>Faqat Ethernet freymining fizik uzunligini</span>
-            </label>
-            <label class="quiz__option">
-              <input type="radio" name="q1" value="b" />
-              <span>Faqat IP va TCP/UDP sarlavhalaridagi manzil-port kombinatsiyasini</span>
-            </label>
-            <label class="quiz__option">
-              <input type="radio" name="q1" value="c" />
-              <span>Paket yuklamasini (payload) va ilg‘or tahlil bilan ilova/protokol
-                belgilarini</span>
-            </label>
-          </fieldset>
-
-          <fieldset class="quiz__block">
-            <legend class="quiz__question">
-              2. IDS ning asosiy vazifasi nimada?
-            </legend>
-            <label class="quiz__option">
-              <input type="radio" name="q2" value="a" />
-              <span>Trafigi inline rejimda faol bloklash va sessiyani avtomatik uzish</span>
-            </label>
-            <label class="quiz__option">
-              <input type="radio" name="q2" value="b" />
-              <span>Kuzatish, tahlil va hodisalar bo‘yicha ogohlantirish (passiv
-                monitoring)</span>
-            </label>
-            <label class="quiz__option">
-              <input type="radio" name="q2" value="c" />
-              <span>Faqat DNS so‘rovlarini shifrlash va foydalanuvchi parollarini
-                saqlash</span>
-            </label>
-          </fieldset>
-
-          <fieldset class="quiz__block">
-            <legend class="quiz__question">
-              3. IPS ning faol (aktiv) xususiyati nimani anglatadi?
-            </legend>
-            <label class="quiz__option">
-              <input type="radio" name="q3" value="a" />
-              <span>Faqat log fayllariga yozish va keyinroq hisobot chiqarish</span>
-            </label>
-            <label class="quiz__option">
-              <input type="radio" name="q3" value="b" />
-              <span>Faqat trafigi ko‘zgusidan nusxa olish (SPAN) va tahlil qilish</span>
-            </label>
-            <label class="quiz__option">
-              <input type="radio" name="q3" value="c" />
-              <span>Aniqlangan tahdidga qarshi bloklash, paketni tashlash yoki sessiyani
-                uzish kabi choralarni qo‘llash</span>
-            </label>
-          </fieldset>
-
-          <div class="quiz__actions">
-            <button type="button" class="quiz__submit" id="quiz-submit">
-              Natijani ko‘rish
-            </button>
-            <button type="button" class="quiz__reset" id="quiz-reset" hidden>
-              Qayta urinish
-            </button>
-          </div>
-
-          <div
-            class="quiz__result"
-            id="quiz-result"
-            role="status"
-            aria-live="polite"
-            hidden
-          ></div>
-        </div>
-      </article>
     </main>
   </div>
 

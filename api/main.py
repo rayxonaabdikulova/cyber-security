@@ -431,6 +431,10 @@ async def tg_send_message_safe(chat_id: int, text: str) -> None:
         logger.exception("Telegram sendMessage failed")
 
 
+def tg_box(title: str, lines: list[str]) -> str:
+    return title + "\n" + "\n".join(lines)
+
+
 def _tg_err_code(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:8].upper()}"
 
@@ -551,37 +555,44 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
     if cmd in {"/start", "/help"}:
         await tg_send_message(
             chat_id,
-            (
-                "Salom! APK tekshiruv boti ishga tayyor.\n"
-                "- Telegramdagi APK faylni shu botga forward qiling.\n"
-                "- Men faylni serverda tahlil qilib natijani yuboraman.\n"
-                f"- Telegram orqali maksimal hajm: {_human_bytes(TELEGRAM_MAX_UPLOAD_BYTES)}.\n"
-                f"- { _human_bytes(TELEGRAM_MAX_UPLOAD_BYTES) } dan katta fayl uchun: {WEB_UPLOAD_URL}\n"
-                "- Qo‘shimcha buyruqlar: /status, /about"
+            tg_box(
+                "🛡️ CyberLab Scanner botiga xush kelibsiz!",
+                [
+                    "📎 Faylni `document` sifatida yuboring yoki forward qiling.",
+                    "⚙️ Men faylni tekshiraman va natijani shu chatga qaytaraman.",
+                    f"📏 Telegram limiti: {_human_bytes(TELEGRAM_MAX_UPLOAD_BYTES)}",
+                    f"🌐 Katta fayl uchun sayt: {WEB_UPLOAD_URL}",
+                    "ℹ️ Buyruqlar: /status, /about",
+                ],
             ),
         )
         return {"ok": True}
     if cmd == "/status":
         await tg_send_message(
             chat_id,
-            (
-                "Bot holati: ONLINE\n"
-                f"Telegram maksimal yuklash: {_human_bytes(TELEGRAM_MAX_UPLOAD_BYTES)}\n"
-                f"Sayt orqali maksimal yuklash: {_human_bytes(WEB_MAX_UPLOAD_BYTES)}\n"
-                f"Webhook URL sozlangan: {'ha' if bool(TELEGRAM_WEBHOOK_URL) else 'yo‘q'}\n"
-                f"Webhook secret sozlangan: {'ha' if bool(TELEGRAM_WEBHOOK_SECRET) else 'yo‘q'}"
+            tg_box(
+                "📊 Bot holati",
+                [
+                    "✅ Holat: ONLINE",
+                    f"📏 Telegram limit: {_human_bytes(TELEGRAM_MAX_UPLOAD_BYTES)}",
+                    f"📦 Sayt limiti: {_human_bytes(WEB_MAX_UPLOAD_BYTES)}",
+                    f"🔗 Webhook URL: {'sozlangan' if bool(TELEGRAM_WEBHOOK_URL) else 'yo‘q'}",
+                    f"🔐 Webhook secret: {'sozlangan' if bool(TELEGRAM_WEBHOOK_SECRET) else 'yo‘q'}",
+                ],
             ),
         )
         return {"ok": True}
     if cmd == "/about":
         await tg_send_message(
             chat_id,
-            (
-                "Bu bot APK fayllarni xavfsizlik bo‘yicha tezkor tekshiradi.\n"
-                "- Yuborish: .apk ni document qilib yuboring.\n"
-                "- Natija: SHA-256, hajm, holat va tavsiya.\n"
-                f"- Telegram limitdan katta fayllar uchun sayt: {WEB_UPLOAD_URL}\n"
-                "- Eslatma: shubhali ilovalarni asosiy qurilmaga o‘rnatmang."
+            tg_box(
+                "ℹ️ Bot haqida",
+                [
+                    "Bu bot fayllarni tezkor xavfsizlik tekshiruvdan o‘tkazadi.",
+                    "🧾 Natija tarkibi: SHA-256, hajm, holat, tavsiya.",
+                    f"🌐 Telegramdan katta fayl bo‘lsa: {WEB_UPLOAD_URL}",
+                    "⚠️ Shubhali fayllarni asosiy qurilmada ishga tushirmang.",
+                ],
             ),
         )
         return {"ok": True}
@@ -592,14 +603,7 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
     if not file_id:
         await tg_send_message(
             chat_id,
-            "Iltimos, APK faylni hujjat sifatida yuboring yoki forward qiling.",
-        )
-        return {"ok": True}
-
-    if not file_name.lower().endswith(".apk"):
-        await tg_send_message(
-            chat_id,
-            "Faqat .apk fayllar qo‘llanadi. Iltimos, APK yuboring.",
+            "Iltimos, faylni hujjat (document) sifatida yuboring yoki forward qiling.",
         )
         return {"ok": True}
 
@@ -607,14 +611,21 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
     if file_size > TELEGRAM_MAX_UPLOAD_BYTES:
         await tg_send_message(
             chat_id,
-            "Fayl Telegram bot limiti uchun katta.\n"
-            f"Telegram limit: {_human_bytes(TELEGRAM_MAX_UPLOAD_BYTES)}.\n"
-            f"Iltimos, bu APK ni sayt orqali yuklang: {WEB_UPLOAD_URL}",
+            tg_box(
+                "📦 Fayl hajmi katta",
+                [
+                    f"Telegram limiti: {_human_bytes(TELEGRAM_MAX_UPLOAD_BYTES)}",
+                    f"Sayt orqali yuklang: {WEB_UPLOAD_URL}",
+                ],
+            ),
         )
         return {"ok": True}
 
     try:
-        await tg_send_message_safe(chat_id, "Qabul qilindi. APK tekshirilmoqda...")
+        await tg_send_message_safe(
+            chat_id,
+            tg_box("⏳ Qabul qilindi", ["Fayl tekshirilmoqda, biroz kuting..."]),
+        )
         # Telegram faylni yuklab olish sekin ketishi mumkin, shuning uchun
         # timeout ni uzoqroq qilyapmiz (lekin baribir cheklangan).
         timeout = httpx.Timeout(connect=20.0, read=160.0, write=20.0, pool=20.0)
@@ -654,18 +665,20 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
         advice = (
             "Tavsiya: fayl normal ko‘rinadi, baribir rasmiy manbadan yuklang."
             if is_safe
-            else "Tavsiya: bu APK ni o‘rnatmang, avval sandbox/antivirusda tekshiring."
+            else "Tavsiya: bu faylni ehtiyotkorlik bilan ishlating, avval sandbox/antivirusda tekshiring."
         )
         await tg_send_message_safe(
             chat_id,
-            (
-                f"{verdict_emoji} Tekshiruv yakuni:\n"
-                f"Fayl: {result.filename}\n"
-                f"SHA-256: {result.sha256_hash}\n"
-                f"Hajm: {result.size_human}\n"
-                f"Holat: {result.status}\n"
-                f"Amal: {result.action}\n"
-                f"{advice}"
+            tg_box(
+                f"{verdict_emoji} Tekshiruv yakuni",
+                [
+                    f"📄 Fayl: {result.filename}",
+                    f"🔐 SHA-256: {result.sha256_hash}",
+                    f"📏 Hajm: {result.size_human}",
+                    f"🧪 Holat: {result.status}",
+                    f"🛡️ Amal: {result.action}",
+                    f"💡 {advice}",
+                ],
             ),
         )
     except HTTPException as exc:
@@ -704,7 +717,7 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
                 f"({code}): Telegram bu faylni bot uchun yuklab bera olmadi "
                 "(file is too big). "
                 f"Telegram limit: {_human_bytes(TELEGRAM_MAX_UPLOAD_BYTES)}. "
-                f"Katta APK uchun saytga yuklang: {WEB_UPLOAD_URL}",
+                f"Katta fayl uchun saytga yuklang: {WEB_UPLOAD_URL}",
             )
             return {"ok": True}
         await tg_send_message_safe(

@@ -29,7 +29,6 @@
     dpi: true,
     ids: true,
     ips: true,
-    test: true,
   };
 
   function isDesktop() {
@@ -273,93 +272,6 @@
       }
     });
   });
-})();
-
-(function () {
-  "use strict";
-
-  var ANSWERS = { q1: "c", q2: "b", q3: "c" };
-  var quizRoot = document.getElementById("security-quiz");
-  var submit = document.getElementById("quiz-submit");
-  var reset = document.getElementById("quiz-reset");
-  var result = document.getElementById("quiz-result");
-
-  if (!submit || !result || !quizRoot) {
-    return;
-  }
-
-  function selectedValue(name) {
-    var el = quizRoot.querySelector('input[name="' + name + '"]:checked');
-    return el ? el.value : null;
-  }
-
-  function scoreAnswers() {
-    var n = 0;
-    if (selectedValue("q1") === ANSWERS.q1) {
-      n += 1;
-    }
-    if (selectedValue("q2") === ANSWERS.q2) {
-      n += 1;
-    }
-    if (selectedValue("q3") === ANSWERS.q3) {
-      n += 1;
-    }
-    return n;
-  }
-
-  function setResult(html, kind) {
-    result.hidden = false;
-    result.className = "quiz__result quiz__result--" + kind;
-    result.innerHTML = html;
-  }
-
-  function clearResult() {
-    result.hidden = true;
-    result.textContent = "";
-    result.className = "quiz__result";
-  }
-
-  submit.addEventListener("click", function () {
-    if (!selectedValue("q1") || !selectedValue("q2") || !selectedValue("q3")) {
-      setResult(
-        "<strong>Diqqat.</strong> Iltimos, har bir savol uchun bitta variantni tanlang.",
-        "retry"
-      );
-      reset.hidden = true;
-      submit.disabled = false;
-      result.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      return;
-    }
-
-    var score = scoreAnswers();
-    if (score === 3) {
-      setResult(
-        "<strong>Tabriklaymiz!</strong> Barcha javoblar to‘g‘ri — DPI, IDS va IPS bo‘yicha asosiy tushunchalarni yaxshi egallagansiz.",
-        "success"
-      );
-    } else {
-      setResult(
-        "<strong>Yana bir bor urinib ko‘ring.</strong> To‘g‘ri javoblar: " +
-          score +
-          " / 3. Materiallarni qayta o‘qib, keyinroq testni yakunlang.",
-        "retry"
-      );
-    }
-    submit.disabled = true;
-    reset.hidden = false;
-    result.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  });
-
-  if (reset) {
-    reset.addEventListener("click", function () {
-      quizRoot.querySelectorAll('input[type="radio"]').forEach(function (input) {
-        input.checked = false;
-      });
-      clearResult();
-      submit.disabled = false;
-      reset.hidden = true;
-    });
-  }
 })();
 
 (function () {

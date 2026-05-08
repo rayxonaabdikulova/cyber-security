@@ -33,7 +33,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+import httpx
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
@@ -104,6 +105,21 @@ class UrlScanResponse(BaseModel):
     verdict: str
     reasons: list[str]
     recommendations: list[str]
+
+
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "").strip()
+TELEGRAM_WEBHOOK_URL = os.environ.get("TELEGRAM_WEBHOOK_URL", "").strip()
+TELEGRAM_API_BASE = (
+    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+    if TELEGRAM_BOT_TOKEN
+    else ""
+)
+TELEGRAM_FILE_BASE = (
+    f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}"
+    if TELEGRAM_BOT_TOKEN
+    else ""
+)
 
 
 app = FastAPI(title="CyberLab DPI Scanner", version="1.0.0")
@@ -187,11 +203,7 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/api/scan-file", response_model=ScanFileResponse)
-async def api_scan_file(file: UploadFile = File(...)) -> ScanFileResponse:
-    raw = await file.read()
-    name = file.filename or "upload"
-
+def build_scan_file_response(name: str, raw: bytes) -> ScanFileResponse:
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
@@ -220,6 +232,13 @@ async def api_scan_file(file: UploadFile = File(...)) -> ScanFileResponse:
         action="IPS: fayl yuklamasi ruxsat etildi (simulyatsiya)",
         **sizes,
     )
+
+
+@app.post("/api/scan-file", response_model=ScanFileResponse)
+async def api_scan_file(file: UploadFile = File(...)) -> ScanFileResponse:
+    raw = await file.read()
+    name = file.filename or "upload"
+    return build_scan_file_response(name, raw)
 
 
 SUSPICIOUS_HOST_KEYWORDS = (
@@ -377,6 +396,175 @@ async def api_scan_url(payload: UrlScanRequest) -> UrlScanResponse:
         return analyze_url_risk(payload.url)
     except (socket.gaierror, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+async def tg_api_post(method: str, payload: dict[str, Any]) -> None:
+    if not TELEGRAM_API_BASE:
+        return
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        await client.post(f"{TELEGRAM_API_BASE}/{method}", json=payload)
+
+
+async def tg_send_message(chat_id: int, text: str) -> None:
+    await tg_api_post(
+        "sendMessage",
+        {
+            "chat_id": chat_id,
+            "text": text,
+            "disable_web_page_preview": True,
+        },
+    )
+
+
+async def tg_api_get(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    if not TELEGRAM_API_BASE:
+        raise HTTPException(status_code=503, detail="Telegram bot token sozlanmagan.")
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.get(f"{TELEGRAM_API_BASE}/{method}", params=params or {})
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("ok"):
+            raise HTTPException(status_code=502, detail=f"Telegram API xatoligi: {data}")
+        return data
+
+
+def _extract_chat_id(update: dict[str, Any]) -> int | None:
+    msg = update.get("message") or update.get("edited_message") or {}
+    chat = msg.get("chat") or {}
+    cid = chat.get("id")
+    return cid if isinstance(cid, int) else None
+
+
+@app.get("/api/telegram/health")
+def telegram_health() -> dict[str, Any]:
+    return {
+        "enabled": bool(TELEGRAM_BOT_TOKEN),
+        "max_upload_bytes": MAX_UPLOAD_BYTES,
+        "webhook_secret_set": bool(TELEGRAM_WEBHOOK_SECRET),
+        "webhook_url_set": bool(TELEGRAM_WEBHOOK_URL),
+    }
+
+
+@app.post("/api/telegram/set-webhook")
+async def telegram_set_webhook() -> dict[str, Any]:
+    if not TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=503, detail="TELEGRAM_BOT_TOKEN yo‘q.")
+    if not TELEGRAM_WEBHOOK_URL:
+        raise HTTPException(status_code=400, detail="TELEGRAM_WEBHOOK_URL yo‘q.")
+
+    params: dict[str, Any] = {"url": TELEGRAM_WEBHOOK_URL}
+    if TELEGRAM_WEBHOOK_SECRET:
+        params["secret_token"] = TELEGRAM_WEBHOOK_SECRET
+
+    data = await tg_api_get("setWebhook", params=params)
+    return {"ok": True, "telegram": data.get("result", True)}
+
+
+@app.get("/api/telegram/webhook-info")
+async def telegram_webhook_info() -> dict[str, Any]:
+    data = await tg_api_get("getWebhookInfo")
+    return {"ok": True, "result": data.get("result", {})}
+
+
+@app.post("/api/telegram/delete-webhook")
+async def telegram_delete_webhook() -> dict[str, Any]:
+    data = await tg_api_get("deleteWebhook", params={"drop_pending_updates": False})
+    return {"ok": True, "telegram": data.get("result", True)}
+
+
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str, bool]:
+    # Bot sozlanmagan bo‘lsa endpoint jim chiqadi (saytga ta'sir qilmaydi).
+    if not TELEGRAM_BOT_TOKEN:
+        return {"ok": True}
+    if TELEGRAM_WEBHOOK_SECRET:
+        recv_secret = request.headers.get("x-telegram-bot-api-secret-token", "")
+        if recv_secret != TELEGRAM_WEBHOOK_SECRET:
+            raise HTTPException(status_code=401, detail="Invalid webhook secret.")
+
+    message = update.get("message") or update.get("edited_message") or {}
+    chat_id = _extract_chat_id(update)
+    if not chat_id:
+        return {"ok": True}
+
+    text = str(message.get("text") or "").strip().lower()
+    if text in {"/start", "/help"}:
+        await tg_send_message(
+            chat_id,
+            (
+                "Salom! APK tekshiruv boti ishga tayyor.\n"
+                "- Telegramdagi APK faylni shu botga forward qiling.\n"
+                "- Men faylni serverda tahlil qilib natijani yuboraman.\n"
+                f"- Maksimal hajm: {MAX_UPLOAD_BYTES} bayt."
+            ),
+        )
+        return {"ok": True}
+
+    document = message.get("document") or {}
+    file_id = document.get("file_id")
+    file_name = str(document.get("file_name") or "telegram-upload")
+    if not file_id:
+        await tg_send_message(
+            chat_id,
+            "Iltimos, APK faylni hujjat sifatida yuboring yoki forward qiling.",
+        )
+        return {"ok": True}
+
+    if not file_name.lower().endswith(".apk"):
+        await tg_send_message(
+            chat_id,
+            "Faqat .apk fayllar qo‘llanadi. Iltimos, APK yuboring.",
+        )
+        return {"ok": True}
+
+    file_size = int(document.get("file_size") or 0)
+    if file_size > MAX_UPLOAD_BYTES:
+        await tg_send_message(
+            chat_id,
+            f"Fayl juda katta. Maksimal hajm: {MAX_UPLOAD_BYTES} bayt.",
+        )
+        return {"ok": True}
+
+    try:
+        await tg_send_message(chat_id, "Qabul qilindi. APK tekshirilmoqda...")
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            file_meta = await client.get(
+                f"{TELEGRAM_API_BASE}/getFile",
+                params={"file_id": file_id},
+            )
+            file_meta.raise_for_status()
+            file_path = (
+                file_meta.json().get("result", {}).get("file_path", "")
+            )
+            if not file_path:
+                await tg_send_message(chat_id, "Fayl manzili olinmadi. Qayta urinib ko‘ring.")
+                return {"ok": True}
+
+            file_resp = await client.get(f"{TELEGRAM_FILE_BASE}/{file_path}")
+            file_resp.raise_for_status()
+            raw = file_resp.content
+
+        result = build_scan_file_response(file_name, raw)
+        await tg_send_message(
+            chat_id,
+            (
+                "Tekshiruv yakuni:\n"
+                f"Fayl: {result.filename}\n"
+                f"SHA-256: {result.sha256_hash}\n"
+                f"Hajm: {result.size_human}\n"
+                f"Holat: {result.status}\n"
+                f"Amal: {result.action}"
+            ),
+        )
+    except HTTPException as exc:
+        await tg_send_message(chat_id, f"Xatolik: {exc.detail}")
+    except Exception:
+        await tg_send_message(
+            chat_id,
+            "Texnik xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko‘ring.",
+        )
+
+    return {"ok": True}
 
 
 # Loyiha ildizi (api papkasining ustidagi Cb): index.html, style.css, script.js

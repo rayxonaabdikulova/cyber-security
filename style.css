@@ -1456,11 +1456,18 @@ body.spa-ready .main > [data-panel-group].is-panel-visible {
   border-radius: 0 8px 8px 0 !important;
   background: transparent !important;
   box-shadow: none !important;
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0;
+  caret-color: #67e8f9;
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-size: 0.925rem;
   padding-left: 0.85rem !important;
   padding-top: 0.75rem !important;
   padding-bottom: 0.75rem !important;
+}
+
+.url-scan-panel__input::placeholder {
+  color: rgba(148, 163, 184, 0.8);
 }
 
 .url-scan-panel__input:focus {

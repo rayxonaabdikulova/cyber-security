@@ -1960,7 +1960,7 @@
     return loc.origin.replace(/\/$/, "") + "/api/scan-file";
   }
 
-  var MAX_CLIENT_BYTES = 50 * 1024 * 1024;
+  var MAX_CLIENT_BYTES = 100 * 1024 * 1024;
 
   var dropZone = document.getElementById("file-drop");
   var fileInput = document.getElementById("file-input");

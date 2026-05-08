@@ -43,7 +43,8 @@ from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 from starlette.staticfiles import StaticFiles
 
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+WEB_MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+TELEGRAM_MAX_UPLOAD_BYTES = 30 * 1024 * 1024
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cyberlab")
@@ -125,6 +126,7 @@ TELEGRAM_FILE_BASE = (
     if TELEGRAM_BOT_TOKEN
     else ""
 )
+WEB_UPLOAD_URL = os.environ.get("WEB_UPLOAD_URL", "https://cyber-security-k77o.onrender.com").strip()
 
 
 app = FastAPI(title="CyberLab DPI Scanner", version="1.0.0")
@@ -209,10 +211,10 @@ def health() -> dict[str, str]:
 
 
 def build_scan_file_response(name: str, raw: bytes) -> ScanFileResponse:
-    if len(raw) > MAX_UPLOAD_BYTES:
+    if len(raw) > WEB_MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
-            detail=f"Fayl juda katta. Maksimum: {MAX_UPLOAD_BYTES} bayt.",
+            detail=f"Fayl juda katta. Maksimum: {WEB_MAX_UPLOAD_BYTES} bayt.",
         )
 
     digest = sha256_hex(raw)
@@ -495,7 +497,8 @@ def _tg_command(text: str) -> str:
 def telegram_health() -> dict[str, Any]:
     return {
         "enabled": bool(TELEGRAM_BOT_TOKEN),
-        "max_upload_bytes": MAX_UPLOAD_BYTES,
+        "telegram_max_upload_bytes": TELEGRAM_MAX_UPLOAD_BYTES,
+        "web_max_upload_bytes": WEB_MAX_UPLOAD_BYTES,
         "webhook_secret_set": bool(TELEGRAM_WEBHOOK_SECRET),
         "webhook_url_set": bool(TELEGRAM_WEBHOOK_URL),
     }
@@ -552,7 +555,8 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
                 "Salom! APK tekshiruv boti ishga tayyor.\n"
                 "- Telegramdagi APK faylni shu botga forward qiling.\n"
                 "- Men faylni serverda tahlil qilib natijani yuboraman.\n"
-                f"- Maksimal hajm: {_human_bytes(MAX_UPLOAD_BYTES)}.\n"
+                f"- Telegram orqali maksimal hajm: {_human_bytes(TELEGRAM_MAX_UPLOAD_BYTES)}.\n"
+                f"- { _human_bytes(TELEGRAM_MAX_UPLOAD_BYTES) } dan katta fayl uchun: {WEB_UPLOAD_URL}\n"
                 "- Qo‘shimcha buyruqlar: /status, /about"
             ),
         )
@@ -562,7 +566,8 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
             chat_id,
             (
                 "Bot holati: ONLINE\n"
-                f"Maksimal yuklash: {_human_bytes(MAX_UPLOAD_BYTES)}\n"
+                f"Telegram maksimal yuklash: {_human_bytes(TELEGRAM_MAX_UPLOAD_BYTES)}\n"
+                f"Sayt orqali maksimal yuklash: {_human_bytes(WEB_MAX_UPLOAD_BYTES)}\n"
                 f"Webhook URL sozlangan: {'ha' if bool(TELEGRAM_WEBHOOK_URL) else 'yo‘q'}\n"
                 f"Webhook secret sozlangan: {'ha' if bool(TELEGRAM_WEBHOOK_SECRET) else 'yo‘q'}"
             ),
@@ -575,6 +580,7 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
                 "Bu bot APK fayllarni xavfsizlik bo‘yicha tezkor tekshiradi.\n"
                 "- Yuborish: .apk ni document qilib yuboring.\n"
                 "- Natija: SHA-256, hajm, holat va tavsiya.\n"
+                f"- Telegram limitdan katta fayllar uchun sayt: {WEB_UPLOAD_URL}\n"
                 "- Eslatma: shubhali ilovalarni asosiy qurilmaga o‘rnatmang."
             ),
         )
@@ -598,10 +604,12 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
         return {"ok": True}
 
     file_size = int(document.get("file_size") or 0)
-    if file_size > MAX_UPLOAD_BYTES:
+    if file_size > TELEGRAM_MAX_UPLOAD_BYTES:
         await tg_send_message(
             chat_id,
-            f"Fayl juda katta. Maksimal hajm: {MAX_UPLOAD_BYTES} bayt.",
+            "Fayl Telegram bot limiti uchun katta.\n"
+            f"Telegram limit: {_human_bytes(TELEGRAM_MAX_UPLOAD_BYTES)}.\n"
+            f"Iltimos, bu APK ni sayt orqali yuklang: {WEB_UPLOAD_URL}",
         )
         return {"ok": True}
 
@@ -679,11 +687,32 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
         logger.exception("Telegram HTTP status error")
         code = _tg_err_code("TG-HTTP")
         status_code = exc.response.status_code if exc.response is not None else "?"
+        body = ""
+        if exc.response is not None:
+            try:
+                body = (exc.response.text or "").strip()
+            except Exception:
+                body = ""
+        body_l = body.lower()
+        detail_tail = ""
+        if body:
+            detail_tail = " Detal: " + body[:220]
+        if status_code == 400 and "file is too big" in body_l:
+            await tg_send_message_safe(
+                chat_id,
+                "Texnik xatolik "
+                f"({code}): Telegram bu faylni bot uchun yuklab bera olmadi "
+                "(file is too big). "
+                f"Telegram limit: {_human_bytes(TELEGRAM_MAX_UPLOAD_BYTES)}. "
+                f"Katta APK uchun saytga yuklang: {WEB_UPLOAD_URL}",
+            )
+            return {"ok": True}
         await tg_send_message_safe(
             chat_id,
             "Texnik xatolik "
             f"({code}): Telegram serveridan noto‘g‘ri javob olindi "
-            f"(HTTP {status_code}). Iltimos, keyinroq qayta urinib ko‘ring.",
+            f"(HTTP {status_code}). Iltimos, keyinroq qayta urinib ko‘ring."
+            + detail_tail,
         )
     except httpx.HTTPError as exc:
         logger.exception("Telegram HTTP error")

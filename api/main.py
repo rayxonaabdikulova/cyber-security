@@ -30,6 +30,7 @@ import logging
 import os
 import re
 import socket
+import uuid
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -420,16 +421,51 @@ async def tg_send_message(chat_id: int, text: str) -> None:
     )
 
 
+async def tg_send_message_safe(chat_id: int, text: str) -> None:
+    """Best-effort yuborish: xatoda webhook oqimini yiqitmaydi."""
+    try:
+        await tg_send_message(chat_id, text)
+    except Exception:
+        logger.exception("Telegram sendMessage failed")
+
+
+def _tg_err_code(prefix: str) -> str:
+    return f"{prefix}-{uuid.uuid4().hex[:8].upper()}"
+
+
 async def tg_api_get(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     if not TELEGRAM_API_BASE:
         raise HTTPException(status_code=503, detail="Telegram bot token sozlanmagan.")
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        resp = await client.get(f"{TELEGRAM_API_BASE}/{method}", params=params or {})
-        resp.raise_for_status()
-        data = resp.json()
-        if not data.get("ok"):
-            raise HTTPException(status_code=502, detail=f"Telegram API xatoligi: {data}")
-        return data
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.get(f"{TELEGRAM_API_BASE}/{method}", params=params or {})
+            resp.raise_for_status()
+            data = resp.json()
+            if not data.get("ok"):
+                raise HTTPException(status_code=502, detail=f"Telegram API xatoligi: {data}")
+            return data
+    except httpx.TimeoutException as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="Telegram API timeout: server Telegram bilan ulana olmadi.",
+        ) from exc
+    except httpx.HTTPStatusError as exc:
+        body = ""
+        if exc.response is not None:
+            body = (exc.response.text or "").strip()
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Telegram API HTTP xatoligi: "
+                f"{exc.response.status_code if exc.response is not None else '?'}"
+                + (f" | {body[:300]}" if body else "")
+            ),
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Telegram API ulanish xatoligi: {type(exc).__name__}",
+        ) from exc
 
 
 def _extract_chat_id(update: dict[str, Any]) -> int | None:
@@ -570,7 +606,7 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
         return {"ok": True}
 
     try:
-        await tg_send_message(chat_id, "Qabul qilindi. APK tekshirilmoqda...")
+        await tg_send_message_safe(chat_id, "Qabul qilindi. APK tekshirilmoqda...")
         # Telegram faylni yuklab olish sekin ketishi mumkin, shuning uchun
         # timeout ni uzoqroq qilyapmiz (lekin baribir cheklangan).
         timeout = httpx.Timeout(connect=20.0, read=160.0, write=20.0, pool=20.0)
@@ -580,15 +616,28 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
                 params={"file_id": file_id},
             )
             file_meta.raise_for_status()
+            meta_payload = file_meta.json()
+            if not meta_payload.get("ok"):
+                raise HTTPException(
+                    status_code=502,
+                    detail="Telegram getFile API xatoligi.",
+                )
 
-            file_path = file_meta.json().get("result", {}).get("file_path", "")
+            file_path = meta_payload.get("result", {}).get("file_path", "")
             if not file_path:
-                await tg_send_message(chat_id, "Fayl manzili olinmadi. Qayta urinib ko‘ring.")
+                await tg_send_message_safe(
+                    chat_id, "Fayl manzili olinmadi. Qayta urinib ko‘ring."
+                )
                 return {"ok": True}
 
             file_resp = await client.get(f"{TELEGRAM_FILE_BASE}/{file_path}")
             file_resp.raise_for_status()
             raw = file_resp.content
+            if not raw:
+                raise HTTPException(
+                    status_code=502,
+                    detail="Telegram fayli bo‘sh yoki yuklab olinmadi.",
+                )
 
         result = build_scan_file_response(file_name, raw)
         status_lower = str(result.status).lower()
@@ -599,7 +648,7 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
             if is_safe
             else "Tavsiya: bu APK ni o‘rnatmang, avval sandbox/antivirusda tekshiring."
         )
-        await tg_send_message(
+        await tg_send_message_safe(
             chat_id,
             (
                 f"{verdict_emoji} Tekshiruv yakuni:\n"
@@ -612,25 +661,46 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
             ),
         )
     except HTTPException as exc:
-        await tg_send_message(chat_id, f"Xatolik: {exc.detail}")
+        logger.exception("Telegram HTTPException in webhook flow")
+        code = _tg_err_code("TG-APP")
+        await tg_send_message_safe(
+            chat_id, f"Xatolik ({code}): {exc.detail}"
+        )
     except httpx.TimeoutException as exc:
         logger.exception("Telegram webhook timeout")
-        await tg_send_message(
+        code = _tg_err_code("TG-TIMEOUT")
+        await tg_send_message_safe(
             chat_id,
-            "Texnik xatolik: Telegram faylni yuklab olish vaqti tugadi. Iltimos, birozdan keyin qayta urinib ko‘ring.",
+            "Texnik xatolik "
+            f"({code}): Telegram faylni yuklab olish vaqti tugadi. "
+            "Iltimos, birozdan keyin qayta urinib ko‘ring.",
+        )
+    except httpx.HTTPStatusError as exc:
+        logger.exception("Telegram HTTP status error")
+        code = _tg_err_code("TG-HTTP")
+        status_code = exc.response.status_code if exc.response is not None else "?"
+        await tg_send_message_safe(
+            chat_id,
+            "Texnik xatolik "
+            f"({code}): Telegram serveridan noto‘g‘ri javob olindi "
+            f"(HTTP {status_code}). Iltimos, keyinroq qayta urinib ko‘ring.",
         )
     except httpx.HTTPError as exc:
         logger.exception("Telegram HTTP error")
-        await tg_send_message(
+        code = _tg_err_code("TG-NET")
+        await tg_send_message_safe(
             chat_id,
-            "Texnik xatolik: Telegram faylni yuklab bo‘lmadi. Sabab: "
+            "Texnik xatolik "
+            f"({code}): Telegram faylni yuklab bo‘lmadi. Sabab: "
             f"{type(exc).__name__}. Iltimos, keyinroq qayta urinib ko‘ring.",
         )
     except Exception as exc:
         logger.exception("Telegram webhook unexpected error")
-        await tg_send_message(
+        code = _tg_err_code("TG-UNEXPECTED")
+        await tg_send_message_safe(
             chat_id,
-            "Texnik xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko‘ring.",
+            "Texnik xatolik yuz berdi "
+            f"({code}, {type(exc).__name__}). Iltimos, keyinroq qayta urinib ko‘ring.",
         )
 
     return {"ok": True}

@@ -889,6 +889,45 @@ body.spa-ready .main > [data-panel-group].is-panel-visible {
   background: rgba(0, 0, 0, 0.35);
 }
 
+.file-analyzer__telegram-note {
+  max-width: 720px;
+  margin: 0 0 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(37, 99, 235, 0.5);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(30, 64, 175, 0.15), rgba(15, 23, 42, 0.88));
+}
+
+.file-analyzer__telegram-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #bfdbfe;
+}
+
+.file-analyzer__telegram-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #dbeafe;
+}
+
+.file-analyzer__telegram-link {
+  color: #93c5fd;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.file-analyzer__telegram-link:hover {
+  color: #bfdbfe;
+}
+
+.file-analyzer__telegram-link:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .file-drop {
   position: relative;
   max-width: 720px;

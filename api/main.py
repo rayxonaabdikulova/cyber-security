@@ -435,6 +435,22 @@ def _extract_chat_id(update: dict[str, Any]) -> int | None:
     return cid if isinstance(cid, int) else None
 
 
+def _human_bytes(num_bytes: int) -> str:
+    if num_bytes >= 1024 * 1024:
+        return f"{num_bytes / (1024 * 1024):.2f} MB"
+    if num_bytes >= 1024:
+        return f"{num_bytes / 1024:.2f} KB"
+    return f"{num_bytes} B"
+
+
+def _tg_command(text: str) -> str:
+    # Telegram command can include bot username: /start@my_bot
+    first = (text or "").strip().split(" ", 1)[0].lower()
+    if "@" in first:
+        first = first.split("@", 1)[0]
+    return first
+
+
 @app.get("/api/telegram/health")
 def telegram_health() -> dict[str, Any]:
     return {
@@ -487,15 +503,39 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
     if not chat_id:
         return {"ok": True}
 
-    text = str(message.get("text") or "").strip().lower()
-    if text in {"/start", "/help"}:
+    text = str(message.get("text") or "").strip()
+    cmd = _tg_command(text)
+    if cmd in {"/start", "/help"}:
         await tg_send_message(
             chat_id,
             (
                 "Salom! APK tekshiruv boti ishga tayyor.\n"
                 "- Telegramdagi APK faylni shu botga forward qiling.\n"
                 "- Men faylni serverda tahlil qilib natijani yuboraman.\n"
-                f"- Maksimal hajm: {MAX_UPLOAD_BYTES} bayt."
+                f"- Maksimal hajm: {_human_bytes(MAX_UPLOAD_BYTES)}.\n"
+                "- Qo‘shimcha buyruqlar: /status, /about"
+            ),
+        )
+        return {"ok": True}
+    if cmd == "/status":
+        await tg_send_message(
+            chat_id,
+            (
+                "Bot holati: ONLINE\n"
+                f"Maksimal yuklash: {_human_bytes(MAX_UPLOAD_BYTES)}\n"
+                f"Webhook URL sozlangan: {'ha' if bool(TELEGRAM_WEBHOOK_URL) else 'yo‘q'}\n"
+                f"Webhook secret sozlangan: {'ha' if bool(TELEGRAM_WEBHOOK_SECRET) else 'yo‘q'}"
+            ),
+        )
+        return {"ok": True}
+    if cmd == "/about":
+        await tg_send_message(
+            chat_id,
+            (
+                "Bu bot APK fayllarni xavfsizlik bo‘yicha tezkor tekshiradi.\n"
+                "- Yuborish: .apk ni document qilib yuboring.\n"
+                "- Natija: SHA-256, hajm, holat va tavsiya.\n"
+                "- Eslatma: shubhali ilovalarni asosiy qurilmaga o‘rnatmang."
             ),
         )
         return {"ok": True}
@@ -545,15 +585,23 @@ async def telegram_webhook(request: Request, update: dict[str, Any]) -> dict[str
             raw = file_resp.content
 
         result = build_scan_file_response(file_name, raw)
+        is_safe = str(result.status).lower() == "safe"
+        verdict_emoji = "✅" if is_safe else "⚠️"
+        advice = (
+            "Tavsiya: fayl normal ko‘rinadi, baribir rasmiy manbadan yuklang."
+            if is_safe
+            else "Tavsiya: bu APK ni o‘rnatmang, avval sandbox/antivirusda tekshiring."
+        )
         await tg_send_message(
             chat_id,
             (
-                "Tekshiruv yakuni:\n"
+                f"{verdict_emoji} Tekshiruv yakuni:\n"
                 f"Fayl: {result.filename}\n"
                 f"SHA-256: {result.sha256_hash}\n"
                 f"Hajm: {result.size_human}\n"
                 f"Holat: {result.status}\n"
-                f"Amal: {result.action}"
+                f"Amal: {result.action}\n"
+                f"{advice}"
             ),
         )
     except HTTPException as exc:
